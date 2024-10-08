@@ -25,3 +25,30 @@
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
 }
+
+/* Upload page specific styles */
+.drop-zone {
+    max-width: 100%;
+    padding: 30px;
+    border: 2px dashed #007bff;
+    border-radius: 5px;
+    background-color: #f8f9fa;
+    text-align: center;
+    cursor: pointer;
+    margin-top: 20px;
+}
+
+.drop-zone.dragover {
+    background-color: #e2e6ea;
+    border-color: #007bff;
+}
+
+.drop-zone p {
+    margin: 0;
+    font-size: 16px;
+    color: #007bff;
+}
+
+.drop-zone input {
+    display: none;
+}

@@ -38,3 +38,45 @@ input[type="submit"] {
 input[type="submit"]:hover {
     background-color: #218838;
 }
+
+.button-container {
+    display: flex;
+    justify-content: center;  /* This centers the button horizontally */
+    margin-top: 20px;
+}
+
+/* Modal styling */
+.modal {
+    display: none; /* Hidden by default */
+    position: fixed; /* Stay in place */
+    z-index: 9999; /* Sit on top */
+    left: 0;
+    top: 0;
+    width: 100%; /* Full width */
+    height: 100%; /* Full height */
+    background-color: rgba(0, 0, 0, 0.5); /* Black background with transparency */
+    justify-content: center;
+    align-items: center;
+}
+
+.modal-content {
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 5px;
+    text-align: center;
+    width: 300px;
+}
+
+.close-btn {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.close-btn:hover, .close-btn:focus {
+    color: #000;
+    text-decoration: none;
+    cursor: pointer;
+}

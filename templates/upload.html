@@ -3,29 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Upload CSV</title>
+    <title>Transaction Report</title>
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/Upload-style.css') }}">
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h2>Upload CSV File</h2>
-        </div>
-        <div class="form-container">
-            <form action="/" method="post" enctype="multipart/form-data" id="uploadForm">
-                <div>
-                    <input type="file" name="file" accept=".csv" required>
-                </div>
-                <div>
-                    <input type="submit" value="Upload">
-                </div>
-            </form>
-            <div id="spinner-overlay" class="spinner-overlay">
-                <div class="spinner"></div>
+        <h2>Upload CSV File</h2>
+        <form action="/" method="post" enctype="multipart/form-data" id="uploadForm">
+            <!-- Clickable drop zone for drag-and-drop -->
+            <div class="drop-zone" id="drop-zone">
+                <p id="dropMessage">Drag and drop a CSV file here or click to select</p>
+                <input type="file" name="file" id="fileInput" accept=".csv">
+                <p id="fileName" style="margin-top: 10px;"></p> <!-- File name display -->
             </div>
+            <!-- Centered Upload Button -->
+            <div class="button-container">
+                <input type="submit" value="Upload" class="upload-btn">
+            </div>
+        </form>
+    </div>
+
+    <!-- Modal for pop-up notification -->
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <p>Kamu harus upload file terlebih dahulu</p>
         </div>
     </div>
+
+    <!-- Loading Spinner Overlay -->
+    <div id="spinner-overlay" class="spinner-overlay">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Link to external JavaScript -->
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
 </body>
 </html>
