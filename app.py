@@ -3,6 +3,7 @@ import pandas as pd
 import os
 from datetime import datetime
 
+
 app = Flask(__name__)
 app.secret_key = 'supersecretkey'
 
@@ -26,10 +27,29 @@ def upload_file():
             return redirect(request.url)
     return render_template('upload.html')
 
+month_names_indonesian = [
+    "", "Januari", "Februari", "Maret", "April", "Mei", "Juni", 
+    "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+]
+
 # Route to generate report
 @app.route('/report/<filename>')
 def generate_report(filename):
     filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    
+    # Split the filename to extract details
+    name_parts = filename.split('.')
+    bank_code = name_parts[0]  # Extract bank code (e.g., 'BAG')
+    channel_type = name_parts[1]  # Extract channel type (e.g., 'IB' or 'IBB')
+    year_month = name_parts[2]  # Extract year and month (e.g., '20245')
+    finance_type = name_parts[3].replace('.csv', '')  # Extract finance type (e.g., 'finance' or 'non-finance')
+
+    # Extract year and month details
+    year = year_month[:4]  # First 4 digits represent the year (2024)
+    month = int(year_month[4:])  # Last digit represents the month (5)
+    month_name = month_names_indonesian[month]  # Get the month name in Indonesian
+
+    # Read the CSV file
     df = pd.read_csv(filepath)
     
     # Parse 'datetime' column, handle inconsistent formats with errors='coerce'
@@ -41,15 +61,15 @@ def generate_report(filename):
     # Pivot the data to count occurrences instead of summing the amount
     pivot_df = df.pivot_table(index='keterangan', columns='datetime', values='amount', aggfunc='count', fill_value=0)
     
-    # Sort 'keterangan' in a case-insensitive way (Aa-Zz)
-    pivot_df = pivot_df.reindex(sorted(pivot_df.index, key=lambda x: x.lower()))
-    
     # Add a 'Grand Total' column (count the total occurrences for each 'keterangan')
     pivot_df['Grand Total'] = pivot_df.sum(axis=1)
-    
-    # Render the pivoted report as an HTML table
-    return render_template('pivot_report.html', pivot_table=pivot_df.to_html(classes='table table-bordered', border=0))
 
+    # Add a new 'Finance Type' column after 'Grand Total'
+    pivot_df['Finance Type'] = 'Finansial' if finance_type == 'finance' else 'Non-Finansial'
+    
+    # Pass the DataFrame directly, not as HTML
+    return render_template('pivot_report.html', pivot_table=pivot_df,
+                           bank_code=bank_code, channel_type=channel_type, month_name=month_name, year=year)
 
 
 

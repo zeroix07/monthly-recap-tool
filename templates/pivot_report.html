@@ -9,9 +9,41 @@
 </head>
 <body>
     <div class="container">
-        <h2>Transaction Report</h2>
+        <h2>Rekap Transaksi Bulanan Bank {{ bank_code }}</h2>
+        <h4>Channel Type: {{ channel_type }}</h4>
+        <h4>Bulan: {{ month_name }}, {{ year }}</h4>
+        <br>
         <div class="table-responsive">
-            {{ pivot_table | safe }}
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <!-- Keterangan column -->
+                        <th>Keterangan</th>
+                        <!-- Dynamically generate the datetime columns -->
+                        {% for date in pivot_table.columns[:-2] %}
+                            <th>{{ date }}</th>
+                        {% endfor %}
+                        <!-- Grand Total and Finance Type columns -->
+                        <th>Grand Total</th>
+                        <th>Finance Type</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for index, row in pivot_table.iterrows() %}
+                    <tr>
+                        <!-- Keterangan row -->
+                        <td><strong>{{ index }}</strong></td>
+                        <!-- Dynamically generate the datetime columns -->
+                        {% for date in pivot_table.columns[:-2] %}
+                            <td>{{ row[date] }}</td>
+                        {% endfor %}
+                        <!-- Grand Total and Finance Type columns -->
+                        <td>{{ row['Grand Total'] }}</td>
+                        <td>{{ row['Finance Type'] }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
 </body>
