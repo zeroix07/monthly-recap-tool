@@ -1,0 +1,35 @@
+/* General table styling remains the same */
+body {
+    font-size: 12px;
+}
+
+table {
+    font-size: 10px;
+    table-layout: auto;
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th, td {
+    padding: 5px;
+    text-align: center;
+    white-space: nowrap;
+}
+
+th {
+    background-color: #f4f4f4;
+    font-weight: bold;
+}
+
+/* Make the first column sticky */
+th:first-child, td:first-child {
+    position: sticky;
+    left: 0;
+    background-color: #ffffff; /* Optional: Change the background color of the sticky column */
+    z-index: 1; /* Ensures the column stays above the others */
+}
+
+.container {
+    width: 100%;
+    margin: 0 auto;
+}
