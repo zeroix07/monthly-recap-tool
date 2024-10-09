@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const modal = document.getElementById('modal');
     const closeBtn = document.querySelector('.close-btn');
 
-    // Show the spinner overlay when the form is submitted, but only if a file is selected
+    // Show the spinner overlay when the form is submitted, but only if files are selected
     form.addEventListener('submit', function(e) {
         if (!fileInput.files.length) {
             e.preventDefault();  // Prevent the form submission if no file is selected
@@ -51,27 +51,29 @@ document.addEventListener('DOMContentLoaded', function() {
         dropZone.classList.remove('dragover');  // Remove the class when file is dropped
         const files = e.dataTransfer.files;
 
-        // Check if a file was dropped and it's a CSV (check by file extension)
-        if (files.length && files[0].name.endsWith('.csv')) {
-            // Assign the dropped file to the input element
+        // Check if files were dropped and are valid CSV files
+        if (files.length) {
+            // Assign the dropped files to the input element
             fileInput.files = files;
-            console.log('File successfully dropped:', files[0].name);
+            console.log('Files successfully dropped:', files);
 
-            // Show the file name in the file name display element
-            fileNameDisplay.textContent = `File: ${files[0].name}`;
+            // Display the names of all dropped files
+            const fileNames = Array.from(files).map(file => file.name).join(', ');
+            fileNameDisplay.textContent = `Files: ${fileNames}`;
 
             // Hide the drop message
             dropMessage.style.display = 'none';
         } else {
-            alert('Please drop a valid CSV file.');
+            alert('Please drop valid CSV files.');
         }
     });
 
-    // Handle when a file is selected using the file dialog
+    // Handle when files are selected using the file dialog
     fileInput.addEventListener('change', function() {
         if (fileInput.files.length) {
-            // Show the file name in the file name display element
-            fileNameDisplay.textContent = `File: ${fileInput.files[0].name}`;
+            // Display the names of all selected files
+            const fileNames = Array.from(fileInput.files).map(file => file.name).join(', ');
+            fileNameDisplay.textContent = `Files: ${fileNames}`;
 
             // Hide the drop message
             dropMessage.style.display = 'none';

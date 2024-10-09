@@ -3,41 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Transaction Report</title>
+    <title>Transaction Reports</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/pivot-style.css') }}">
 </head>
 <body>
     <div class="container">
-        <h2>Rekap Transaksi Bulanan Bank {{ bank_code }}</h2>
-        <h4>Channel Type: {{ channel_type }}</h4>
-        <h4>Bulan: {{ month_name }}, {{ year }}</h4>
+        <h2>Rekap Transaksi Bulanan</h2>
+
+        <!-- Loop through each report and generate the report table -->
+        {% for report in reports %}
+        <br>
+        <h3>Kode Bank: {{ report.bank_code }} | Channel Type: {{ report.channel_type }} | Bulan: {{ report.month_name }}, {{ report.year }}</h3>
         <br>
         <div class="table-responsive">
             <table class="table table-bordered">
                 <thead>
                     <tr>
-                        <!-- Keterangan column -->
                         <th>Keterangan</th>
-                        <!-- Dynamically generate the datetime columns -->
-                        {% for date in pivot_table.columns[:-2] %}
+                        {% for date in report.pivot_table.columns[:-2] %}
                             <th>{{ date }}</th>
                         {% endfor %}
-                        <!-- Grand Total and Finance Type columns -->
                         <th>Grand Total</th>
                         <th>Finance Type</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for index, row in pivot_table.iterrows() %}
+                    {% for index, row in report.pivot_table.iterrows() %}
                     <tr>
-                        <!-- Keterangan row -->
                         <td><strong>{{ index }}</strong></td>
-                        <!-- Dynamically generate the datetime columns -->
-                        {% for date in pivot_table.columns[:-2] %}
+                        {% for date in report.pivot_table.columns[:-2] %}
                             <td>{{ row[date] }}</td>
                         {% endfor %}
-                        <!-- Grand Total and Finance Type columns -->
                         <td>{{ row['Grand Total'] }}</td>
                         <td>{{ row['Finance Type'] }}</td>
                     </tr>
@@ -45,6 +42,8 @@
                 </tbody>
             </table>
         </div>
+        <hr> <!-- Separate each report with a line -->
+        {% endfor %}
     </div>
 </body>
 </html>

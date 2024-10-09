@@ -13,8 +13,8 @@
         <form action="/" method="post" enctype="multipart/form-data" id="uploadForm">
             <!-- Clickable drop zone for drag-and-drop -->
             <div class="drop-zone" id="drop-zone">
-                <p id="dropMessage">Drag and drop a CSV file here or click to select</p>
-                <input type="file" name="file" id="fileInput" accept=".csv">
+                <p id="dropMessage">Drag and drop CSV files here or click to select</p>
+                <input type="file" name="files" id="fileInput" accept=".csv" multiple> <!-- Allow multiple files -->
                 <p id="fileName" style="margin-top: 10px;"></p> <!-- File name display -->
             </div>
             <!-- Centered Upload Button -->

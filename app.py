@@ -17,14 +17,22 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 @app.route('/', methods=['GET', 'POST'])
 def upload_file():
     if request.method == 'POST':
-        file = request.files['file']
-        if file.filename.endswith('.csv'):
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-            file.save(filepath)
-            return redirect(url_for('generate_report', filename=file.filename))
-        else:
-            flash('Please upload a valid CSV file.')
-            return redirect(request.url)
+        files = request.files.getlist('files')  # Get the list of uploaded files
+        file_paths = []
+
+        # Loop through the files and save them
+        for file in files:
+            if file.filename.endswith('.csv'):
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+                file.save(filepath)
+                file_paths.append(file.filename)  # Store filenames for report generation
+            else:
+                flash('Please upload valid CSV files.')
+                return redirect(request.url)
+
+        # Redirect to the report generation page with the list of filenames
+        return redirect(url_for('generate_report', filenames=",".join(file_paths)))
+
     return render_template('upload.html')
 
 month_names_indonesian = [
@@ -33,43 +41,50 @@ month_names_indonesian = [
 ]
 
 # Route to generate report
-@app.route('/report/<filename>')
-def generate_report(filename):
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    
-    # Split the filename to extract details
-    name_parts = filename.split('.')
-    bank_code = name_parts[0]  # Extract bank code (e.g., 'BAG')
-    channel_type = name_parts[1]  # Extract channel type (e.g., 'IB' or 'IBB')
-    year_month = name_parts[2]  # Extract year and month (e.g., '20245')
-    finance_type = name_parts[3].replace('.csv', '')  # Extract finance type (e.g., 'finance' or 'non-finance')
+@app.route('/report/<filenames>')
+def generate_report(filenames):
+    file_list = filenames.split(',')  # Get the list of filenames from the URL
+    reports = []
 
-    # Extract year and month details
-    year = year_month[:4]  # First 4 digits represent the year (2024)
-    month = int(year_month[4:])  # Last digit represents the month (5)
-    month_name = month_names_indonesian[month]  # Get the month name in Indonesian
+    for filename in file_list:
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        
+        # Split the filename to extract details
+        name_parts = filename.split('.')
+        bank_code = name_parts[0]
+        channel_type = name_parts[1]
+        year_month = name_parts[2]
+        finance_type = name_parts[3].replace('.csv', '')
 
-    # Read the CSV file
-    df = pd.read_csv(filepath)
-    
-    # Parse 'datetime' column, handle inconsistent formats with errors='coerce'
-    df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce').dt.strftime('%m-%d-%Y')
-    
-    # Drop rows where 'datetime' could not be parsed
-    df = df.dropna(subset=['datetime'])
-    
-    # Pivot the data to count occurrences instead of summing the amount
-    pivot_df = df.pivot_table(index='keterangan', columns='datetime', values='amount', aggfunc='count', fill_value=0)
-    
-    # Add a 'Grand Total' column (count the total occurrences for each 'keterangan')
-    pivot_df['Grand Total'] = pivot_df.sum(axis=1)
+        # Extract year and month details
+        year = year_month[:4]
+        month = int(year_month[4:])
+        month_name = month_names_indonesian[month]
 
-    # Add a new 'Finance Type' column after 'Grand Total'
-    pivot_df['Finance Type'] = 'Finansial' if finance_type == 'finance' else 'Non-Finansial'
-    
-    # Pass the DataFrame directly, not as HTML
-    return render_template('pivot_report.html', pivot_table=pivot_df,
-                           bank_code=bank_code, channel_type=channel_type, month_name=month_name, year=year)
+        # Read the CSV file
+        df = pd.read_csv(filepath)
+        
+        # Parse 'datetime' column
+        df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce').dt.strftime('%m-%d-%Y')
+        df = df.dropna(subset=['datetime'])
+
+        # Pivot the data
+        pivot_df = df.pivot_table(index='keterangan', columns='datetime', values='amount', aggfunc='count', fill_value=0)
+        pivot_df['Grand Total'] = pivot_df.sum(axis=1)
+        pivot_df['Finance Type'] = 'Finansial' if finance_type == 'finance' else 'Non-Finansial'
+
+        # Store each generated report in a list
+        reports.append({
+            'bank_code': bank_code,
+            'channel_type': channel_type,
+            'month_name': month_name,
+            'year': year,
+            'pivot_table': pivot_df
+        })
+
+    # Render the reports page, passing multiple reports
+    return render_template('pivot_report.html', reports=reports)
+
 
 
 
