@@ -72,7 +72,7 @@ def generate_report(filenames):
         if finance_type == 'finance':
             pivot_df = df.pivot_table(index='keterangan', columns='datetime', values='amount', aggfunc='count', fill_value=0)
         else:
-            pivot_df = df.pivot_table(index='keterangan', columns='datetime', values='count', aggfunc='count', fill_value=0)
+            pivot_df = df.pivot_table(index='keterangan', columns='datetime', values='count', aggfunc='sum', fill_value=0)
 
         # Add 'Grand Total' column
         pivot_df['Grand Total'] = pivot_df.sum(axis=1)
@@ -103,6 +103,19 @@ import pandas as pd
 def export_to_excel(filenames):
     file_list = filenames.split(',')
     excel_output = io.BytesIO()  # Create an in-memory file
+
+    # Extract details from the first file for naming purposes
+    first_filename = file_list[0]
+    name_parts = first_filename.split('.')
+    bank_code = name_parts[0]  # Extract bank code
+    channel_type = name_parts[1]  # Extract channel type
+    year_month = name_parts[2]  # Extract year and month
+    finance_type = name_parts[3].replace('.csv', '')  # Extract finance type
+
+    # Extract year and month details from the first file
+    year = year_month[:4]
+    month = int(year_month[4:])
+    month_name = month_names_indonesian[month]  # Get the month name in Indonesian
 
     with pd.ExcelWriter(excel_output, engine='xlsxwriter') as writer:
         row_position = 0  # To track the row position for writing each report sequentially
@@ -157,10 +170,12 @@ def export_to_excel(filenames):
     # Reset file pointer to the start of the stream
     excel_output.seek(0)
 
+    # Generate the download name using the first file's details
+    download_name = f"Transaksi_Bulanan_{bank_code}_{month_name}_{year}.xlsx"
+
     # Send the Excel file to the user
     return send_file(excel_output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                     as_attachment=True, download_name='transaction_report.xlsx')
-
+                     as_attachment=True, download_name=download_name)
 
 
 
