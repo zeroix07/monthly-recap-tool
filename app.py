@@ -107,7 +107,6 @@ def export_to_excel(filenames):
     first_filename = file_list[0]
     name_parts = first_filename.split('.')
     bank_code = name_parts[0]  # Extract bank code
-    channel_type = name_parts[1]  # Extract channel type
     year_month = name_parts[2]  # Extract year and month
     finance_type = name_parts[3].replace('.csv', '')  # Extract finance type
 
@@ -121,7 +120,7 @@ def export_to_excel(filenames):
 
         for filename in file_list:
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            
+
             # Split the filename to extract details
             name_parts = filename.split('.')
             bank_code = name_parts[0]
@@ -143,25 +142,38 @@ def export_to_excel(filenames):
             if finance_type == 'finance':
                 pivot_df = df.pivot_table(index='keterangan', columns='datetime', values='amount', aggfunc='count', fill_value=0)
             else:
-                pivot_df = df.pivot_table(index='keterangan', columns='datetime', values='count', aggfunc='count', fill_value=0)
+                pivot_df = df.pivot_table(index='keterangan', columns='datetime', values='count', aggfunc='sum', fill_value=0)
 
             # Add 'Grand Total' and 'Finance Type'
             pivot_df['Grand Total'] = pivot_df.sum(axis=1)
             pivot_df['Finance Type'] = 'Finansial' if finance_type == 'finance' else 'Non-Finansial'
 
             # Write the bank details
-            worksheet = writer.sheets.get('Report') or writer.book.add_worksheet('Report')
+            worksheet = writer.sheets.get('Rekap') or writer.book.add_worksheet('Rekap')
             worksheet.write(row_position, 0, f"Rekap Transaksi Bulanan")
             row_position += 1
             worksheet.write(row_position, 0, f"Bank: {bank_code} | Channel Type: {channel_type} | Bulan: {month_name}, {year}")
             row_position += 1
 
-            # Write the pivot table data
-            pivot_df.to_excel(writer, sheet_name='Report', startrow=row_position, header=True, index=True)
+            # Write the pivot table data to the Excel sheet
+            pivot_df.to_excel(writer, sheet_name='Rekap', startrow=row_position, header=True, index=True)
 
             # Adjust column widths for better readability
-            for col_num, value in enumerate(pivot_df.columns):
-                worksheet.set_column(col_num + 1, col_num + 1, 15)  # Adjust column widths as needed
+            worksheet.set_column(0, len(pivot_df.columns), 15)  # Adjust column widths as needed
+
+            # Apply a border format to all cells
+            workbook = writer.book
+            border_format = workbook.add_format({
+                'border': 1  # Adds a solid border to all sides of the cell
+            })
+
+            # Get the DataFrame as a 2D list of values
+            data_with_headers = [pivot_df.columns.insert(0, 'Keterangan')] + pivot_df.reset_index().values.tolist()
+
+            # Apply the border format to all cells
+            for row_num, row_data in enumerate(data_with_headers, start=row_position):
+                for col_num, cell_value in enumerate(row_data):
+                    worksheet.write(row_num + 1, col_num, cell_value, border_format)
 
             # Move the row position down to leave space before the next report
             row_position += len(pivot_df) + 4
@@ -175,6 +187,9 @@ def export_to_excel(filenames):
     # Send the Excel file to the user
     return send_file(excel_output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                      as_attachment=True, download_name=download_name)
+
+
+
 
 
 
