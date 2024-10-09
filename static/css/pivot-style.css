@@ -33,3 +33,13 @@ th:first-child, td:first-child {
     width: 100%;
     margin: 0 auto;
 }
+
+.header-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+.button-container a {
+    margin-left: 10px;
+}

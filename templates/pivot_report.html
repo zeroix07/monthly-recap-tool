@@ -9,12 +9,21 @@
 </head>
 <body>
     <div class="container">
-        <h2>Rekap Transaksi Bulanan</h2>
+        <!-- Header with title on the left and buttons on the right -->
+        <div class="header-container">
+            <h2>Rekap Transaksi Bulanan</h2>
+            <div class="button-container">
+                <!-- Back Button -->
+                <a href="/" class="btn btn-secondary">Back</a>
+
+                <!-- Export Button -->
+                <a href="{{ url_for('export_to_excel', filenames=filenames) }}" class="btn btn-success">Export to Excel</a>
+            </div>
+        </div>
 
         <!-- Loop through each report and generate the report table -->
         {% for report in reports %}
-        <br>
-        <h3>Kode Bank: {{ report.bank_code }} | Channel Type: {{ report.channel_type }} | Bulan: {{ report.month_name }}, {{ report.year }}</h3>
+        <h3>Bank: {{ report.bank_code }} | Channel Type: {{ report.channel_type }} | Bulan: {{ report.month_name }}, {{ report.year }}</h3>
         <br>
         <div class="table-responsive">
             <table class="table table-bordered">
