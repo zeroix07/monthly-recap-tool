@@ -98,11 +98,6 @@ def generate_report(filenames):
     return render_template('pivot_report.html', reports=reports, filenames=filenames)
 
 
-# Export route to generate Excel file
-from flask import send_file
-import io
-import pandas as pd
-
 # Export route to generate Excel file in the same format as pivot report
 @app.route('/export/<filenames>')
 def export_to_excel(filenames):
@@ -141,7 +136,12 @@ def export_to_excel(filenames):
 
             # Read the CSV file
             df = pd.read_csv(filepath)
+            df['datetime'] = df['datetime'].apply(lambda x: re.sub(r'\.\d+', '', x))  # Remove everything after the dot (fractional seconds)
+
+            # Convert the cleaned datetime column to proper datetime format and format as 'mm-dd-yyyy'
             df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce').dt.strftime('%m-%d-%Y')
+
+            # Drop rows where datetime conversion failed
             df = df.dropna(subset=['datetime'])
 
             # Pivot the data based on finance type
@@ -193,6 +193,123 @@ def export_to_excel(filenames):
     # Send the Excel file to the user
     return send_file(excel_output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                      as_attachment=True, download_name=download_name)
+
+
+
+@app.route('/invoice/excel/<filenames>')
+def generate_invoice_to_excel(filenames):
+    file_list = filenames.split(',')
+    
+    # Dictionary to store data grouped by (bank_code, channel_type)
+    grouped_files = {}
+
+    # Extract bank code and year/month from the first file for dynamic filename
+    first_filename = file_list[0]
+    name_parts = first_filename.split('.')
+    bank_code = name_parts[0]
+    year_month = name_parts[2]
+
+    # Group the files by bank code and channel type
+    for filename in file_list:
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        
+        # Split the filename to extract details
+        name_parts = filename.split('.')
+        bank_code = name_parts[0]
+        channel_type = name_parts[1]
+        finance_type = name_parts[3].replace('.csv', '')
+        
+        key = (bank_code, channel_type)  # Grouping key
+        if key not in grouped_files:
+            grouped_files[key] = []
+        grouped_files[key].append((filepath, finance_type))
+
+    excel_output = io.BytesIO()
+    
+    # Create an Excel file for the invoice
+    with pd.ExcelWriter(excel_output, engine='xlsxwriter') as writer:
+        worksheet = writer.book.add_worksheet('Invoice')
+
+        # Initialize row position to write data
+        row_position = 0
+
+        # Create formats for bold, font size, borders, and blue background
+        bold_format = writer.book.add_format({'bold': True})
+        bold_font_blue = writer.book.add_format({'bold': True, 'font_size': 14})  # Blue background
+        border_format = writer.book.add_format({'border': 1})
+        bold_border_format_blue = writer.book.add_format({'bold': True, 'border': 1, 'bg_color': '#87CEEB'})  # Bold, blue background
+        border_format_blue = writer.book.add_format({'border': 1, 'bg_color': '#87CEEB'})  # Blue background with border
+
+        # Iterate through the groups and generate the invoices
+        for (bank_code, channel_type), files in grouped_files.items():
+            # Dictionary to store aggregated data for this group
+            invoice_data = {}
+            allowed_non_finance_keterangans = [
+                "Account Statement Inquiry", "CIF Inquiry", 
+                "Deposit Accounts Inquiry", "Loan Accounts Inquiry", "Mini Statement"
+            ]
+
+            for filepath, finance_type in files:
+                # Read the CSV file
+                df = pd.read_csv(filepath)
+                df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce').dt.strftime('%m-%d-%Y')
+                df = df.dropna(subset=['datetime'])
+
+                # Aggregate data for the invoice table
+                if finance_type == 'finance':
+                    df_agg = df.groupby('keterangan')['amount'].count().reset_index()  # Use count for finance
+                    for _, row in df_agg.iterrows():
+                        if row['keterangan'] not in invoice_data:
+                            invoice_data[row['keterangan']] = {'Non-Finansial': 0, 'Finansial': 0}
+                        invoice_data[row['keterangan']]['Finansial'] += row['amount']
+                else:
+                    df_agg = df.groupby('keterangan')['count'].sum().reset_index()
+                    df_agg = df_agg[df_agg['keterangan'].isin(allowed_non_finance_keterangans)]
+                    for _, row in df_agg.iterrows():
+                        if row['keterangan'] not in invoice_data:
+                            invoice_data[row['keterangan']] = {'Non-Finansial': 0, 'Finansial': 0}
+                        invoice_data[row['keterangan']]['Non-Finansial'] += row['count']
+
+            # Calculate Grand Total
+            grand_total_non_finance = sum([data['Non-Finansial'] for data in invoice_data.values()])
+            grand_total_finance = sum([data['Finansial'] for data in invoice_data.values()])
+
+            # Write the bank code and channel type, bold and font size 14 with blue background
+            worksheet.write(row_position, 0, f'Bank {bank_code}, {channel_type}', bold_font_blue)
+            row_position += 2  # Leave a blank row
+
+            # Write the headers for the table with blue background
+            worksheet.write(row_position, 0, 'Keterangan', bold_border_format_blue)
+            worksheet.write(row_position, 1, 'Non-Finansial', bold_border_format_blue)
+            worksheet.write(row_position, 2, 'Finansial', bold_border_format_blue)
+
+            # Write the invoice data with borders
+            row_position += 1
+            for keterangan, values in invoice_data.items():
+                worksheet.write(row_position, 0, keterangan, border_format)
+                worksheet.write(row_position, 1, values['Non-Finansial'], border_format)
+                worksheet.write(row_position, 2, values['Finansial'], border_format)
+                row_position += 1
+
+            # Write the Grand Total row, bold and with blue background
+            worksheet.write(row_position, 0, 'Grand Total', bold_border_format_blue)
+            worksheet.write(row_position, 1, grand_total_non_finance, border_format_blue)
+            worksheet.write(row_position, 2, grand_total_finance, border_format_blue)
+
+            # Add some space before the next invoice
+            row_position += 3  # Leave space for the next group of data
+
+    # Reset the pointer to the beginning of the stream
+    excel_output.seek(0)
+
+    # Create the dynamic download filename
+    download_name = f"Invoice.{bank_code}.{year_month}.xlsx"
+
+    # Send the file to the user
+    return send_file(excel_output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                     as_attachment=True, download_name=download_name)
+
+
 
 
 
