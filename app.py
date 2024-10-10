@@ -233,12 +233,15 @@ def generate_invoice_to_excel(filenames):
         # Initialize row position to write data
         row_position = 0
 
-        # Create formats for bold, font size, borders, and blue background
-        bold_format = writer.book.add_format({'bold': True})
-        bold_font_blue = writer.book.add_format({'bold': True, 'font_size': 14})  # Blue background
-        border_format = writer.book.add_format({'border': 1})
+        # Create combined formats (bold, font size, borders, and background color)
+        bold_format = writer.book.add_format({'bold': True, 'border': 1})
+        bold_font_blue = writer.book.add_format({'bold': True, 'font_size': 14})  # Blue background with border
+        border_format = writer.book.add_format({'border': 1})  # Border format for regular cells
         bold_border_format_blue = writer.book.add_format({'bold': True, 'border': 1, 'bg_color': '#87CEEB'})  # Bold, blue background
-        border_format_blue = writer.book.add_format({'border': 1, 'bg_color': '#87CEEB'})  # Blue background with border
+        red_border_format = writer.book.add_format({'bold': True, 'font_color': 'white', 'bg_color': 'red', 'border': 1})  # Red background with border
+
+        grand_total_finance = 0
+        grand_total_non_finance = 0
 
         # Iterate through the groups and generate the invoices
         for (bank_code, channel_type), files in grouped_files.items():
@@ -252,6 +255,7 @@ def generate_invoice_to_excel(filenames):
             for filepath, finance_type in files:
                 # Read the CSV file
                 df = pd.read_csv(filepath)
+                df['datetime'] = df['datetime'].apply(lambda x: re.sub(r'\.\d+', '', x)) 
                 df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce').dt.strftime('%m-%d-%Y')
                 df = df.dropna(subset=['datetime'])
 
@@ -271,14 +275,14 @@ def generate_invoice_to_excel(filenames):
                         invoice_data[row['keterangan']]['Non-Finansial'] += row['count']
 
             # Calculate Grand Total
-            grand_total_non_finance = sum([data['Non-Finansial'] for data in invoice_data.values()])
-            grand_total_finance = sum([data['Finansial'] for data in invoice_data.values()])
+            grand_total_non_finance += sum([data['Non-Finansial'] for data in invoice_data.values()])
+            grand_total_finance += sum([data['Finansial'] for data in invoice_data.values()])
 
             # Write the bank code and channel type, bold and font size 14 with blue background
             worksheet.write(row_position, 0, f'Bank {bank_code}, {channel_type}', bold_font_blue)
             row_position += 2  # Leave a blank row
 
-            # Write the headers for the table with blue background
+            # Write the headers for the table with blue background and borders
             worksheet.write(row_position, 0, 'Keterangan', bold_border_format_blue)
             worksheet.write(row_position, 1, 'Non-Finansial', bold_border_format_blue)
             worksheet.write(row_position, 2, 'Finansial', bold_border_format_blue)
@@ -293,11 +297,123 @@ def generate_invoice_to_excel(filenames):
 
             # Write the Grand Total row, bold and with blue background
             worksheet.write(row_position, 0, 'Grand Total', bold_border_format_blue)
-            worksheet.write(row_position, 1, grand_total_non_finance, border_format_blue)
-            worksheet.write(row_position, 2, grand_total_finance, border_format_blue)
+            worksheet.write(row_position, 1, sum([data['Non-Finansial'] for data in invoice_data.values()]), border_format)
+            worksheet.write(row_position, 2, sum([data['Finansial'] for data in invoice_data.values()]), border_format)
 
             # Add some space before the next invoice
             row_position += 3  # Leave space for the next group of data
+
+        # After the invoice table, calculate and display the calculation invoice
+
+        col_position = 5  # Place 2 cells to the right of the first invoice
+        
+        # Write calculation header with borders
+        worksheet.write(0, col_position, "Minimum Transaksi: Rp. 25,000,000", bold_format)
+        row_position = 2
+        
+        worksheet.write(row_position, col_position, "Transaksi:", bold_format)
+        worksheet.write(row_position, col_position + 1, f"{year_month}", bold_format)
+        worksheet.write(row_position, col_position + 2, "Jumlah Trx", bold_format)
+        worksheet.write(row_position, col_position + 3, "Harga", bold_format)
+        worksheet.write(row_position, col_position + 4, "Tagihan", bold_format)
+        row_position += 1
+
+        # Finansial with borders applied
+        worksheet.write(row_position, col_position, "Fin", bold_format)
+        worksheet.write(row_position, col_position + 1, grand_total_finance, border_format)
+        worksheet.write(row_position, col_position + 2, "", border_format)
+        worksheet.write(row_position, col_position + 3, "", border_format)
+        worksheet.write(row_position, col_position + 4, "", border_format)
+        remaining_finance = grand_total_finance
+
+        # Step by step calculation for different ranges, applying borders
+        # Transaksi Finansial 0 - 10000
+        calc_1 = min(10000, remaining_finance)
+        worksheet.write(row_position + 1, col_position, "", border_format)
+        worksheet.write(row_position + 1, col_position + 1, "Transaksi Finansial 0 - 10000", border_format)
+        worksheet.write(row_position + 1, col_position + 2, calc_1, border_format)
+        worksheet.write(row_position + 1, col_position + 3, 1500, border_format)
+        worksheet.write(row_position + 1, col_position + 4, calc_1 * 1500, border_format)
+        remaining_finance -= calc_1
+
+        # Transaksi Finansial 10,001 - 35,000
+        calc_2 = min(25000, remaining_finance)
+        worksheet.write(row_position + 2, col_position, "", border_format)
+        worksheet.write(row_position + 2, col_position + 1, "Transaksi Finansial 10.001 - 35.000", border_format)
+        worksheet.write(row_position + 2, col_position + 2, calc_2, border_format)
+        worksheet.write(row_position + 2, col_position + 3, 1200, border_format)
+        worksheet.write(row_position + 2, col_position + 4, calc_2 * 1200, border_format)
+        remaining_finance -= calc_2
+
+        # Transaksi Finansial 35,001 - 75,000
+        calc_3 = min(40000, remaining_finance)
+        worksheet.write(row_position + 3, col_position, "", border_format)
+        worksheet.write(row_position + 3, col_position + 1, "Transaksi Finansial 35.001 - 75.000", border_format)
+        worksheet.write(row_position + 3, col_position + 2, calc_3, border_format)
+        worksheet.write(row_position + 3, col_position + 3, 1000, border_format)
+        worksheet.write(row_position + 3, col_position + 4, calc_3 * 1000, border_format)
+        remaining_finance -= calc_3
+
+        # Transaksi Finansial 75,001 - 100,000
+        calc_4 = min(25000, remaining_finance)
+        worksheet.write(row_position + 4, col_position, "", border_format)
+        worksheet.write(row_position + 4, col_position + 1, "Transaksi Finansial 75.001 - 100.000", border_format)
+        worksheet.write(row_position + 4, col_position + 2, calc_4, border_format)
+        worksheet.write(row_position + 4, col_position + 3, 800, border_format)
+        worksheet.write(row_position + 4, col_position + 4, calc_4 * 800, border_format)
+        remaining_finance -= calc_4
+
+        # Transaksi Finansial > 100,000
+        calc_5 = remaining_finance
+        worksheet.write(row_position + 5, col_position, "", border_format)
+        worksheet.write(row_position + 5, col_position + 1, "Transaksi Finansial > 100.000", border_format)
+        worksheet.write(row_position + 5, col_position + 2, calc_5, border_format)
+        worksheet.write(row_position + 5, col_position + 3, 600, border_format)
+        worksheet.write(row_position + 5, col_position + 4, calc_5 * 600, border_format)
+
+        # Non-Finansial with borders
+        worksheet.write(row_position + 6, col_position, "Non Fin", bold_format)
+        worksheet.write(row_position + 6, col_position + 1, grand_total_non_finance, border_format)
+        worksheet.write(row_position + 6, col_position + 2, "", border_format)
+        worksheet.write(row_position + 6, col_position + 3, "", border_format)
+        worksheet.write(row_position + 6, col_position + 4, "", border_format)
+        worksheet.write(row_position + 7, col_position, "", border_format)
+        worksheet.write(row_position + 7, col_position + 1, "", border_format)
+        worksheet.write(row_position + 7, col_position + 2, grand_total_non_finance, border_format)  # Inquiry calculation
+        worksheet.write(row_position + 7, col_position + 3, 300, border_format)
+        worksheet.write(row_position + 7, col_position + 4, grand_total_non_finance * 300, border_format)
+
+        # Total row with borders
+        total_tagihan = (
+            calc_1 * 1500 + calc_2 * 1200 + calc_3 * 1000 + calc_4 * 800 + calc_5 * 600 +
+            grand_total_non_finance * 300
+        )
+        worksheet.write(row_position + 8, col_position, "", border_format)
+        worksheet.write(row_position + 8, col_position + 1, "", border_format)
+        worksheet.write(row_position + 8, col_position + 2, "", border_format)
+        worksheet.write(row_position + 8, col_position + 3, "", border_format)
+        worksheet.write(row_position + 8, col_position + 4, "", border_format)
+        worksheet.write(row_position + 9, col_position, "", border_format)
+        worksheet.write(row_position + 9, col_position + 1, "", border_format)
+        worksheet.write(row_position + 9, col_position + 2, "", border_format)
+        worksheet.write(row_position + 9, col_position + 3, "", border_format)
+        worksheet.write(row_position + 9, col_position + 4, "", border_format)
+        worksheet.write(row_position + 10, col_position, "TOTAL", bold_border_format_blue)
+        worksheet.write(row_position + 10, col_position + 1, "", bold_border_format_blue)
+        worksheet.write(row_position + 10, col_position + 2, "", bold_border_format_blue)
+        worksheet.write(row_position + 10, col_position + 3, "", bold_border_format_blue)
+        worksheet.write(row_position + 10, col_position + 4, "", bold_border_format_blue)
+        worksheet.write(row_position + 10, col_position + 4, total_tagihan, bold_border_format_blue)
+
+        # Total Tagihan with red and border
+        total_final = total_tagihan - 25000000
+        worksheet.write(row_position + 11, col_position, "Total Tagihan", red_border_format)
+        worksheet.write(row_position + 11, col_position + 1, "", red_border_format)
+        worksheet.write(row_position + 11, col_position + 2, "", red_border_format)
+        worksheet.write(row_position + 11, col_position + 3, "", red_border_format)
+        worksheet.write(row_position + 11, col_position + 4, "", red_border_format)
+        worksheet.write(row_position + 11, col_position + 4, total_final, red_border_format)
+
 
     # Reset the pointer to the beginning of the stream
     excel_output.seek(0)
@@ -308,6 +424,16 @@ def generate_invoice_to_excel(filenames):
     # Send the file to the user
     return send_file(excel_output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                      as_attachment=True, download_name=download_name)
+
+
+
+
+
+
+
+
+
+
 
 
 
