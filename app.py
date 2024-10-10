@@ -1,7 +1,9 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, send_file
 import pandas as pd
+from datetime import datetime
 import os
 import io
+import re
 
 app = Flask(__name__)
 app.secret_key = 'supersecretkey'
@@ -63,10 +65,14 @@ def generate_report(filenames):
         # Read the CSV file
         df = pd.read_csv(filepath)
         
-        # Parse 'datetime' column
-        df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce').dt.strftime('%m-%d-%Y')
-        df = df.dropna(subset=['datetime'])
+        # Use regex to remove the fractional seconds from the datetime strings
+        df['datetime'] = df['datetime'].apply(lambda x: re.sub(r'\.\d+', '', x))  # Remove everything after the dot (fractional seconds)
 
+        # Convert the cleaned datetime column to proper datetime format and format as 'mm-dd-yyyy'
+        df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce').dt.strftime('%m-%d-%Y')
+
+        # Drop rows where datetime conversion failed
+        df = df.dropna(subset=['datetime'])
         # Pivot the data using the 'count' for non-finance and 'amount' for finance
         if finance_type == 'finance':
             pivot_df = df.pivot_table(index='keterangan', columns='datetime', values='amount', aggfunc='count', fill_value=0)
