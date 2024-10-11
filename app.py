@@ -234,7 +234,7 @@ def generate_invoice_to_excel(filenames):
         row_position = 0
 
         # Create combined formats (bold, font size, borders, and background color)
-        bold_format = writer.book.add_format({'bold': True, 'border': 1})
+        bold_format = writer.book.add_format({'bold': True})
         bold_font_blue = writer.book.add_format({'bold': True, 'font_size': 14})  # Blue background with border
         border_format_comma = writer.book.add_format({'num_format': '[$-421]#,##0', 'border': 1})
         border_format = writer.book.add_format({'border': 1})  # Border format for regular cells
