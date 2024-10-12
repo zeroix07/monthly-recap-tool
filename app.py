@@ -14,6 +14,10 @@ if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
+# @app.route('/', methods=['GET'])
+# def dashboard():
+#     return render_template('dashboard.html')
+
 # Route to display form and upload CSV
 @app.route('/', methods=['GET', 'POST'])
 def upload_file():

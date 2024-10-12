@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/dashboard-style.css') }}">
+</head>
+<body>
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <h3>Admin Dashboard</h3>
+        <a href="#add-data-bank">Add Data Bank</a>
+        <a href="#generate-report">Generate Report and Invoice</a>
+        <a href="#update-invoice">Update Invoice</a>
+    </div>
+
+    <!-- Main content area -->
+    <div class="content">
+        <div id="welcome">
+            <h2>Welcome to Admin Dashboard</h2>
+            <p>Use the sidebar to navigate between different functionalities.</p>
+        </div>
+
+        <!-- Add Data Bank Section -->
+        <div id="add-data-bank" style="display: none;">
+            <h2>Add Data Bank</h2>
+            <form id="bank-form" method="POST" action="/add_bank">
+                <div class="mb-3">
+                    <label for="bankCode" class="form-label">Bank Code</label>
+                    <input type="text" class="form-control" id="bankCode" name="bank_code" required>
+                </div>
+                <div class="mb-3">
+                    <label for="bankName" class="form-label">Bank Name</label>
+                    <input type="text" class="form-control" id="bankName" name="bank_name" required>
+                </div>
+                <div class="mb-3">
+                    <label for="version" class="form-label">Version</label>
+                    <select class="form-select" id="version" name="version" required>
+                        <option value="V1">V1</option>
+                        <option value="V2">V2</option>
+                        <!-- Add more versions as needed -->
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">Save</button>
+            </form>
+        </div>
+
+        <!-- Generate Report and Invoice Section -->
+        <div id="generate-report" style="display: none;">
+            <h2>Generate Report and Invoice</h2>
+            <form id="report-form">
+                <div class="mb-3">
+                    <label for="reportVersion" class="form-label">Report Version</label>
+                    <select class="form-select" id="reportVersion" required>
+                        <option value="V1">V1</option>
+                        <option value="V2">V2</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="uploadFiles" class="form-label">Upload CSV Files</label>
+                    <input type="file" class="form-control" id="uploadFiles" accept=".csv" multiple required>
+                </div>
+                <button type="submit" class="btn btn-primary">Generate</button>
+            </form>
+        </div>
+
+        <!-- Update Invoice Section -->
+        <div id="update-invoice" style="display: none;">
+            <h2>Update Invoice</h2>
+            <form id="invoice-form" method="POST" action="/add_invoice">
+                <div class="mb-3">
+                    <label for="bankCode" class="form-label">Bank Code</label>
+                    <input type="text" class="form-control" id="bankCode" name="bank_code" required>
+                </div>
+                <div class="mb-3">
+                    <label for="tieringName" class="form-label">Tiering Name</label>
+                    <input type="text" class="form-control" id="tieringName" name="tiering_name" required>
+                </div>
+                <div class="mb-3">
+                    <label for="trxMinimum" class="form-label">Minimum Transaksi</label>
+                    <input type="number" class="form-control" id="trxMinimum" name="trx_minimum" required>
+                </div>
+                <div class="mb-3">
+                    <label for="trxFinance" class="form-label">Jumlah Transaksi Finansial</label>
+                    <input type="number" class="form-control" id="trxFinance" name="trx_finance" required>
+                </div>
+                <div class="mb-3">
+                    <label for="financePrice" class="form-label">Harga Finansial</label>
+                    <input type="number" class="form-control" id="financePrice" name="finance_price" required>
+                </div>
+                <div class="mb-3">
+                    <label for="trxNonfinance" class="form-label">Jumlah Transaksi Non-Finansial</label>
+                    <input type="number" class="form-control" id="trxNonfinance" name="trx_nonfinance" required>
+                </div>
+                <div class="mb-3">
+                    <label for="nonfinancePrice" class="form-label">Harga Non-Finansial</label>
+                    <input type="number" class="form-control" id="nonfinancePrice" name="nonfinance_price" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Save</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        document.querySelectorAll('.sidebar a').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                document.querySelectorAll('.content > div').forEach(div => div.style.display = 'none');
+                document.querySelector(link.getAttribute('href')).style.display = 'block';
+            });
+        });
+    </script>
+
+</body>
+</html>
