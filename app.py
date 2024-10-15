@@ -4,9 +4,19 @@ from datetime import datetime
 import os
 import io
 import re
+from operations import save_bank_data, get_all_banks, update_bank_data, get_bank_by_id, delete_bank_data, create_table_if_not_exists
+from time import time
 
 app = Flask(__name__)
 app.secret_key = 'supersecretkey'
+
+
+@app.after_request
+def add_header(response):
+    response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '-1'
+    return response
 
 # Ensure upload directory exists
 UPLOAD_FOLDER = 'uploads/'
@@ -14,9 +24,91 @@ if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# @app.route('/', methods=['GET'])
-# def dashboard():
-#     return render_template('dashboard.html')
+
+@app.route('/invoice', methods=['GET', 'POST'])
+def invoice():
+    # Fetch the bank data from the bank_data table (replace this with your actual query)
+    banks = get_all_banks()  # Example function to fetch bank_code and bank_name from the database
+
+    if request.method == 'POST':
+        # Process the form data here (bank_code, bank_name, etc.)
+        bank_code = request.form['bank_code']
+        bank_name = request.form['bank_name']
+        # Add your form handling logic here
+
+    return render_template('dashboard.html', banks=banks, show_section='invoice')
+
+
+@app.route('/add_bank', methods=['POST', 'GET'])
+def add_bank():
+    if request.method == 'POST':
+        bank_code = request.form['bank_code']
+        bank_name = request.form['bank_name']
+        version = request.form['version']
+
+        # Save the new bank data
+        success = save_bank_data(bank_code, bank_name, version)
+
+        if success:
+            flash('Bank data added successfully!', 'success')
+        else:
+            flash('Duplicate entry! Bank data already exists.', 'warning')
+
+    # Fetch all bank data after insert
+    banks = get_all_banks()
+
+    # Render the dashboard with the 'add-data-bank' section visible
+    return render_template('dashboard.html', banks=banks, show_section='data-bank')
+
+
+@app.route('/edit_bank/<int:bank_id>', methods=['GET', 'POST'])
+def edit_bank(bank_id):
+    if request.method == 'POST':
+        bank_code = request.form['bank_code']
+        bank_name = request.form['bank_name']
+        version = request.form['version']
+
+        # Update the bank record
+        update_bank_data(bank_id, bank_code, bank_name, version)
+
+        flash('Bank data updated successfully!', 'success')
+        return redirect(url_for('add_bank'))
+
+    # If GET, fetch the bank record
+    bank = get_bank_by_id(bank_id)
+    return render_template('edit_bank.html', bank=bank)
+
+
+@app.route('/delete_bank/<int:bank_id>', methods=['GET'])
+def delete_bank(bank_id):
+    # Delete the bank data
+    delete_bank_data(bank_id)
+
+    flash('Bank data deleted successfully!', 'success')
+
+    # Fetch all bank data after deletion
+    banks = get_all_banks()
+
+    # Render the dashboard with the 'add-data-bank' section visible
+    return render_template('dashboard.html', banks=banks, show_section='data-bank')
+
+
+
+@app.route('/', methods=['GET'])
+def dashboard():
+    create_table_if_not_exists()
+    
+    banks = get_all_banks()
+
+    # If no banks exist, pass an empty list
+    if not banks:
+        banks = []
+
+    show_section = request.args.get('show_section', 'welcome')
+
+    # Render the template with the banks data
+    return render_template('dashboard.html', banks=banks, show_section=show_section)
+
 
 # Route to display form and upload CSV
 @app.route('/', methods=['GET', 'POST'])
@@ -200,7 +292,7 @@ def export_to_excel(filenames):
 
 
 
-@app.route('/invoice/excel/<filenames>')
+@app.route('/invoice/excel/<filenames>', methods=['GET', 'POST'])
 def generate_invoice_to_excel(filenames):
     file_list = filenames.split(',')
     
