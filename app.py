@@ -236,60 +236,60 @@ month_names_indonesian = [
 ]
 
 # Route to generate report
-@app.route('/report/<filenames>')
-def generate_report(filenames):
-    file_list = filenames.split(',')  # Get the list of filenames from the URL
-    reports = []
+# @app.route('/report/<filenames>')
+# def generate_report(filenames):
+#     file_list = filenames.split(',')  # Get the list of filenames from the URL
+#     reports = []
 
-    for filename in file_list:
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+#     for filename in file_list:
+#         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         
-        # Split the filename to extract details
-        name_parts = filename.split('.')
-        bank_code = name_parts[0]
-        channel_type = name_parts[1]
-        year_month = name_parts[2]
-        finance_type = name_parts[3].replace('.csv', '')
+#         # Split the filename to extract details
+#         name_parts = filename.split('.')
+#         bank_code = name_parts[0]
+#         channel_type = name_parts[1]
+#         year_month = name_parts[2]
+#         finance_type = name_parts[3].replace('.csv', '')
 
-        # Extract year and month details
-        year = year_month[:4]
-        month = int(year_month[4:])
-        month_name = month_names_indonesian[month]
+#         # Extract year and month details
+#         year = year_month[:4]
+#         month = int(year_month[4:])
+#         month_name = month_names_indonesian[month]
 
-        # Read the CSV file
-        df = pd.read_csv(filepath)
+#         # Read the CSV file
+#         df = pd.read_csv(filepath)
         
-        # Use regex to remove the fractional seconds from the datetime strings
-        df['datetime'] = df['datetime'].apply(lambda x: re.sub(r'\.\d+', '', x))  # Remove everything after the dot (fractional seconds)
+#         # Use regex to remove the fractional seconds from the datetime strings
+#         df['datetime'] = df['datetime'].apply(lambda x: re.sub(r'\.\d+', '', x))  # Remove everything after the dot (fractional seconds)
 
-        # Convert the cleaned datetime column to proper datetime format and format as 'mm-dd-yyyy'
-        df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce').dt.strftime('%m-%d-%Y')
+#         # Convert the cleaned datetime column to proper datetime format and format as 'mm-dd-yyyy'
+#         df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce').dt.strftime('%m-%d-%Y')
 
-        # Drop rows where datetime conversion failed
-        df = df.dropna(subset=['datetime'])
-        # Pivot the data using the 'count' for non-finance and 'amount' for finance
-        if finance_type == 'finance':
-            pivot_df = df.pivot_table(index='keterangan', columns='datetime', values='amount', aggfunc='count', fill_value=0)
-        else:
-            pivot_df = df.pivot_table(index='keterangan', columns='datetime', values='count', aggfunc='sum', fill_value=0)
+#         # Drop rows where datetime conversion failed
+#         df = df.dropna(subset=['datetime'])
+#         # Pivot the data using the 'count' for non-finance and 'amount' for finance
+#         if finance_type == 'finance':
+#             pivot_df = df.pivot_table(index='keterangan', columns='datetime', values='amount', aggfunc='count', fill_value=0)
+#         else:
+#             pivot_df = df.pivot_table(index='keterangan', columns='datetime', values='count', aggfunc='sum', fill_value=0)
 
-        # Add 'Grand Total' column
-        pivot_df['Grand Total'] = pivot_df.sum(axis=1)
+#         # Add 'Grand Total' column
+#         pivot_df['Grand Total'] = pivot_df.sum(axis=1)
 
-        # Add 'Finance Type' column
-        pivot_df['Finance Type'] = 'Finansial' if finance_type == 'finance' else 'Non-Finansial'
+#         # Add 'Finance Type' column
+#         pivot_df['Finance Type'] = 'Finansial' if finance_type == 'finance' else 'Non-Finansial'
 
-        # Store each generated report in a list
-        reports.append({
-            'bank_code': bank_code,
-            'channel_type': channel_type,
-            'month_name': month_name,
-            'year': year,
-            'pivot_table': pivot_df
-        })
+#         # Store each generated report in a list
+#         reports.append({
+#             'bank_code': bank_code,
+#             'channel_type': channel_type,
+#             'month_name': month_name,
+#             'year': year,
+#             'pivot_table': pivot_df
+#         })
 
-    # Render the reports page, passing multiple reports
-    return render_template('pivot_report.html', reports=reports, filenames=filenames)
+#     # Render the reports page, passing multiple reports
+#     return render_template('pivot_report.html', reports=reports, filenames=filenames)
 
 
 # Export route to generate Excel file in the same format as pivot report
@@ -635,94 +635,137 @@ def generate_invoice_to_excel(filenames):
                      as_attachment=True, download_name=download_name)
 
 
-@app.route('/invoice/combine/<filenames>', methods=['GET', 'POST'])
+@app.route('/report/<filenames>', methods=['GET', 'POST'])
+def generate_report(filenames):
+    file_list = filenames.split(',')  # Get the list of filenames from the URL
+    reports = []
+    all_non_finance_keterangans = set()
+    for filename in file_list:
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        # Split the filename to extract details
+        name_parts = filename.split('.')
+        bank_code = name_parts[0]
+        channel_type = name_parts[1]
+        year_month = name_parts[2]
+        finance_type = name_parts[3].replace('.csv', '')
+        # Extract year and month details
+        year = year_month[:4]
+        month = int(year_month[4:])
+        month_name = month_names_indonesian[month]
+        # Read the CSV file
+        df = pd.read_csv(filepath)
+        # Use regex to remove the fractional seconds from the datetime strings
+        df['datetime'] = df['datetime'].apply(lambda x: re.sub(r'\.\d+', '', x))  # Remove everything after the dot (fractional seconds)
+        # Convert the cleaned datetime column to proper datetime format and format as 'mm-dd-yyyy'
+        df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce').dt.strftime('%m-%d-%Y')
+        # Drop rows where datetime conversion failed
+        df = df.dropna(subset=['datetime'])
+        # Collect non-financial keterangans
+        if finance_type != 'finance':
+            non_finance_keterangans = df['keterangan'].unique()
+            all_non_finance_keterangans.update(non_finance_keterangans)
+        # Pivot the data using the 'count' for non-finance and 'amount' for finance
+        if finance_type == 'finance':
+            pivot_df = df.pivot_table(index='keterangan', columns='datetime', values='amount', aggfunc='count', fill_value=0)
+        else:
+            pivot_df = df.pivot_table(index='keterangan', columns='datetime', values='count', aggfunc='sum', fill_value=0)
+        # Add 'Grand Total' column
+        pivot_df['Grand Total'] = pivot_df.sum(axis=1)
+        # Add 'Finance Type' column
+        pivot_df['Finance Type'] = 'Finansial' if finance_type == 'finance' else 'Non-Finansial'
+        # Store each generated report in a list
+        reports.append({
+            'bank_code': bank_code,
+            'channel_type': channel_type,
+            'month_name': month_name,
+            'year': year,
+            'pivot_table': pivot_df
+        })
+    # Convert the set to a sorted list
+    unique_non_finance_keterangans = sorted(all_non_finance_keterangans)
+    # Render the reports page, passing multiple reports and the unique keterangans
+    return render_template(
+        'pivot_report.html',
+        reports=reports,
+        filenames=filenames,
+        unique_non_finance_keterangans=unique_non_finance_keterangans
+    )
+
+# Invoice Combine Route
+@app.route('/invoice/combine/<filenames>', methods=['POST'])
 def invoice_combine(filenames):
+    selected_keterangans = request.form.getlist('keterangans')
+    if not selected_keterangans:
+        flash('Please select at least one non-financial keterangan to include.', 'warning')
+        return redirect(url_for('generate_report', filenames=filenames))
     file_list = filenames.split(',')
     excel_output = io.BytesIO()  # Create an in-memory file
-
     # Extract details from the first file for naming purposes
     first_filename = file_list[0]
     name_parts = first_filename.split('.')
     bank_code = name_parts[0]  # Extract bank code
     year_month = name_parts[2]  # Extract year and month
-
     # Prepare the month and year for naming
     year = year_month[:4]
     month = int(year_month[4:])
     month_name = month_names_indonesian[month]
-
     with pd.ExcelWriter(excel_output, engine='xlsxwriter') as writer:
         ### Write the 'Rekap' sheet (matching generate_report layout)
         row_position = 0  # To track the row position for writing each report sequentially
-
         # Create 'Rekap' worksheet
         workbook = writer.book
         worksheet_rekap = workbook.add_worksheet('Rekap')
-
         # Create formats
         border_format = workbook.add_format({'border': 1})
         bold_format = workbook.add_format({'bold': True})
         header_format = workbook.add_format({'bold': True, 'border': 1})
         keterangan_format = workbook.add_format({'bold': True, 'border': 1})
-
         for filename in file_list:
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-
             # Split the filename to extract details
             name_parts = filename.split('.')
             bank_code = name_parts[0]
             channel_type = name_parts[1]
             year_month = name_parts[2]
             finance_type = name_parts[3].replace('.csv', '')
-
             # Extract year and month details
             year = year_month[:4]
             month = int(year_month[4:])
             month_name = month_names_indonesian[month]
-
             # Read the CSV file
             df = pd.read_csv(filepath)
             df['datetime'] = df['datetime'].apply(lambda x: re.sub(r'\.\d+', '', x))
             df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce')
             df = df.dropna(subset=['datetime'])
             df['datetime'] = df['datetime'].dt.strftime('%d-%m-%Y')  # Format as 'dd-mm-yyyy'
-
             # Sort the DataFrame by datetime
             df = df.sort_values('datetime')
-
             # Pivot the data based on finance type
             if finance_type == 'finance':
                 pivot_df = df.pivot_table(index='keterangan', columns='datetime', values='amount', aggfunc='count', fill_value=0)
             else:
                 pivot_df = df.pivot_table(index='keterangan', columns='datetime', values='count', aggfunc='sum', fill_value=0)
-
             # Reorder columns to ensure consistent ordering
             pivot_df = pivot_df.reindex(sorted(pivot_df.columns), axis=1)
-
             # Add 'Grand Total' and 'Finance Type'
             pivot_df['Grand Total'] = pivot_df.sum(axis=1)
             pivot_df['Finance Type'] = 'Finansial' if finance_type == 'finance' else 'Non-Finansial'
-
             # Move 'Finance Type' to the first column
             cols = pivot_df.columns.tolist()
             cols = ['Finance Type'] + [col for col in cols if col not in ['Finance Type', 'Grand Total']] + ['Grand Total']
             pivot_df = pivot_df[cols]
-
             # Write the bank details
             worksheet_rekap.write(row_position, 0, f"Rekap Transaksi Bulanan", bold_format)
             row_position += 1
             worksheet_rekap.write(row_position, 0, f"Bank: {bank_code} | Channel Type: {channel_type} | Bulan: {month_name}, {year}", bold_format)
             row_position += 1
-
             # Set index name if not set
             if pivot_df.index.name is None:
                 pivot_df.index.name = 'keterangan'
-
             # Prepare the headers
             col_labels = [pivot_df.index.name] + pivot_df.columns.tolist()
             for col_num, value in enumerate(col_labels):
                 worksheet_rekap.write(row_position, col_num, value, header_format)
-
             # Write the data rows
             for df_row_num, (idx, row) in enumerate(pivot_df.reset_index().iterrows()):
                 row_values = row.tolist()  # Use row.tolist() directly to include 'keterangan'
@@ -742,41 +785,29 @@ def invoice_combine(filenames):
                     else:
                         cell_format = border_format
                     worksheet_rekap.write(row_position + df_row_num + 1, col_num, cell_value, cell_format)
-
             # Adjust column widths
             worksheet_rekap.set_column(0, len(col_labels) - 1, 15)
-
             # Update row_position
             row_position += len(pivot_df) + 2 + 2  # Data rows + headers + extra space
-
         ### Write the 'Invoice' sheet (from generate_invoice_to_excel)
-        # [The rest of the code remains the same]
-        # [For brevity, I'm including it below without changes]
-
         # Dictionary to store data grouped by (bank_code, channel_type)
         grouped_files = {}
-
         # Group the files by bank code and channel type
         for filename in file_list:
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-
             # Split the filename to extract details
             name_parts = filename.split('.')
             bank_code = name_parts[0]
             channel_type = name_parts[1]
             finance_type = name_parts[3].replace('.csv', '')
-
             key = (bank_code, channel_type)  # Grouping key
             if key not in grouped_files:
                 grouped_files[key] = []
             grouped_files[key].append((filepath, finance_type))
-
         # Create 'Invoice' worksheet
         worksheet = workbook.add_worksheet('Invoice')
-
         # Initialize row position to write data
         row_position = 0
-
         # Create formats
         bold_format = workbook.add_format({'bold': True})
         bold_font_blue = workbook.add_format({'bold': True, 'font_size': 14})
@@ -786,19 +817,13 @@ def invoice_combine(filenames):
         bold_border_format_blue = workbook.add_format({'bold': True, 'border': 1, 'bg_color': '#87CEEB', 'num_format': '#,##0'})
         red_border_format = workbook.add_format({'bold': True, 'font_color': 'white', 'bg_color': 'red', 'border': 1, 'num_format': '#,##0'})
         idr_format = workbook.add_format({'num_format': '"Rp"#,##0', 'border': 1})
-
         grand_total_finance = 0
         grand_total_non_finance = 0
-
         # Iterate through the groups and generate the invoices
         for (bank_code, channel_type), files in grouped_files.items():
             # Dictionary to store aggregated data for this group
             invoice_data = {}
-            allowed_non_finance_keterangans = [
-                "Account Statement Inquiry", "CIF Inquiry",
-                "Deposit Accounts Inquiry", "Loan Accounts Inquiry", "Mini Statement"
-            ]   
-
+            allowed_non_finance_keterangans = selected_keterangans
             for filepath, finance_type in files:
                 # Read the CSV file
                 df = pd.read_csv(filepath)
@@ -806,7 +831,6 @@ def invoice_combine(filenames):
                 df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce')
                 df = df.dropna(subset=['datetime'])
                 df['datetime'] = df['datetime'].dt.strftime('%d-%m-%Y')  # Format as 'dd-mm-yyyy'
-
                 # Aggregate data for the invoice table
                 if finance_type == 'finance':
                     df_agg = df.groupby('keterangan')['amount'].count().reset_index()
@@ -821,20 +845,16 @@ def invoice_combine(filenames):
                         if row['keterangan'] not in invoice_data:
                             invoice_data[row['keterangan']] = {'Non-Finansial': 0, 'Finansial': 0}
                         invoice_data[row['keterangan']]['Non-Finansial'] += row['count']
-
             # Calculate Grand Total
             grand_total_non_finance += sum([data['Non-Finansial'] for data in invoice_data.values()])
             grand_total_finance += sum([data['Finansial'] for data in invoice_data.values()])
-
             # Write the bank code and channel type
             worksheet.write(row_position, 0, f'Bank {bank_code}, {channel_type}', bold_font_blue)
             row_position += 2  # Leave a blank row
-
             # Write the headers for the table
             worksheet.write(row_position, 0, 'Keterangan', bold_border_format_blue)
             worksheet.write(row_position, 1, 'Non-Finansial', bold_border_format_blue)
             worksheet.write(row_position, 2, 'Finansial', bold_border_format_blue)
-
             # Write the invoice data
             row_position += 1
             for keterangan, values in invoice_data.items():
@@ -842,30 +862,23 @@ def invoice_combine(filenames):
                 worksheet.write(row_position, 1, values['Non-Finansial'], border_format_comma)
                 worksheet.write(row_position, 2, values['Finansial'], border_format_comma)
                 row_position += 1
-
             # Write the Grand Total row
             worksheet.write(row_position, 0, 'Grand Total', bold_border_format_blue)
             worksheet.write(row_position, 1, sum([data['Non-Finansial'] for data in invoice_data.values()]), border_format_comma)
             worksheet.write(row_position, 2, sum([data['Finansial'] for data in invoice_data.values()]), border_format_comma)
-
             # Add some space before the next invoice
             row_position += 3  # Leave space for the next group of data
-
         # After the invoice table, calculate and display the calculation invoice
-
         col_position = 5  # Place 2 cells to the right of the first invoice
-
         # Write calculation header
         worksheet.write(0, col_position, "Minimum Transaksi: Rp. 25,000,000", bold_format)
         row_position = 2
-
         worksheet.write(row_position, col_position, "Transaksi:", bold_border_format_blue)
         worksheet.write(row_position, col_position + 1, f"{month_name} {year}", bold_border_format_blue)
         worksheet.write(row_position, col_position + 2, "Jumlah Trx", bold_border_format_blue)
         worksheet.write(row_position, col_position + 3, "Harga", bold_border_format_blue)
         worksheet.write(row_position, col_position + 4, "Tagihan", bold_border_format_blue)
         row_position += 1
-
         # Finansial
         worksheet.write(row_position, col_position, "Fin", bold_border_format)
         worksheet.write(row_position, col_position + 1, grand_total_finance, border_format_comma)
@@ -873,7 +886,6 @@ def invoice_combine(filenames):
         worksheet.write(row_position, col_position + 3, "", border_format)
         worksheet.write(row_position, col_position + 4, "", border_format)
         remaining_finance = grand_total_finance
-
         # Step by step calculation for different ranges
         # Transaksi Finansial 0 - 10,000
         calc_1 = min(10000, remaining_finance)
@@ -883,7 +895,6 @@ def invoice_combine(filenames):
         worksheet.write(row_position + 1, col_position + 3, 1500, idr_format)
         worksheet.write(row_position + 1, col_position + 4, calc_1 * 1500, idr_format)
         remaining_finance -= calc_1
-
         # Transaksi Finansial 10,001 - 35,000
         calc_2 = min(25000, remaining_finance)
         worksheet.write(row_position + 2, col_position, "", border_format)
@@ -892,7 +903,6 @@ def invoice_combine(filenames):
         worksheet.write(row_position + 2, col_position + 3, 1200, idr_format)
         worksheet.write(row_position + 2, col_position + 4, calc_2 * 1200, idr_format)
         remaining_finance -= calc_2
-
         # Transaksi Finansial 35,001 - 75,000
         calc_3 = min(40000, remaining_finance)
         worksheet.write(row_position + 3, col_position, "", border_format)
@@ -901,7 +911,6 @@ def invoice_combine(filenames):
         worksheet.write(row_position + 3, col_position + 3, 1000, idr_format)
         worksheet.write(row_position + 3, col_position + 4, calc_3 * 1000, idr_format)
         remaining_finance -= calc_3
-
         # Transaksi Finansial 75,001 - 100,000
         calc_4 = min(25000, remaining_finance)
         worksheet.write(row_position + 4, col_position, "", border_format)
@@ -910,7 +919,6 @@ def invoice_combine(filenames):
         worksheet.write(row_position + 4, col_position + 3, 800, idr_format)
         worksheet.write(row_position + 4, col_position + 4, calc_4 * 800, idr_format)
         remaining_finance -= calc_4
-
         # Transaksi Finansial > 100,000
         calc_5 = remaining_finance
         worksheet.write(row_position + 5, col_position, "", border_format)
@@ -918,10 +926,10 @@ def invoice_combine(filenames):
         worksheet.write(row_position + 5, col_position + 2, calc_5, border_format_comma)
         worksheet.write(row_position + 5, col_position + 3, 600, idr_format)
         worksheet.write(row_position + 5, col_position + 4, calc_5 * 600, idr_format)
-
         # Non-Finansial
         worksheet.write(row_position + 6, col_position, "Non Fin", bold_border_format)
-        worksheet.write(row_position + 6, col_position + 1, grand_total_non_finance, border_format_comma)
+        worksheet.write(row_position, col_position + 1, grand_total_non_finance, border_format_comma)
+        worksheet.write(row_position + 6, col_position + 1, "", border_format)
         worksheet.write(row_position + 6, col_position + 2, "", border_format)
         worksheet.write(row_position + 6, col_position + 3, "", border_format)
         worksheet.write(row_position + 6, col_position + 4, "", border_format)
@@ -930,7 +938,6 @@ def invoice_combine(filenames):
         worksheet.write(row_position + 7, col_position + 2, grand_total_non_finance, border_format_comma)
         worksheet.write(row_position + 7, col_position + 3, 300, idr_format)
         worksheet.write(row_position + 7, col_position + 4, grand_total_non_finance * 300, idr_format)
-
         # Total row
         total_tagihan = (
             calc_1 * 1500 + calc_2 * 1200 + calc_3 * 1000 + calc_4 * 800 + calc_5 * 600 +
@@ -952,7 +959,6 @@ def invoice_combine(filenames):
         worksheet.write(row_position + 10, col_position + 3, "", bold_border_format_blue)
         worksheet.write(row_position + 10, col_position + 4, "", bold_border_format_blue)
         worksheet.write(row_position + 10, col_position + 4, total_tagihan, bold_border_format_blue)
-
         # Total Tagihan with red and border
         total_final = total_tagihan - 25000000
         worksheet.write(row_position + 11, col_position, "Total Tagihan", red_border_format)
@@ -961,18 +967,13 @@ def invoice_combine(filenames):
         worksheet.write(row_position + 11, col_position + 3, "", red_border_format)
         worksheet.write(row_position + 11, col_position + 4, "", red_border_format)
         worksheet.write(row_position + 11, col_position + 4, total_final, red_border_format)
-
-
     # Reset file pointer to the start of the stream
     excel_output.seek(0)
-
     # Create the dynamic download filename
     download_name = f"Invoice_Combine.{bank_code}.{year_month}.xlsx"
-
     # Send the file to the user
     return send_file(excel_output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                      as_attachment=True, download_name=download_name)
-
 
 
 
