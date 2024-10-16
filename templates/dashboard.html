@@ -101,35 +101,36 @@
             {% endif %}
         </div>
 
-        <form id="report-form" method="POST" enctype="multipart/form-data" onsubmit="return validateForm()">
-            <div class="mb-3">
-                <label for="reportVersion" class="form-label">Report Version</label>
-                <select class="form-select" id="reportVersion" required>
-                    <option value="select-the-option">Select Version</option> <!-- Default invalid option -->
-                    <option value="V1">V1</option>
-                    <option value="V2">V2</option>
-                </select>
-            </div>
-        
-            <!-- Drag-and-Drop Zone for File Upload -->
-            <div class="mb-3">
-                <label for="uploadFiles" class="form-label">Upload CSV Files</label>
-                <div id="drop-zone" class="drop-zone">
-                    <span class="drop-zone__prompt">Drag & drop your files here or click to select files</span>
-                    <input type="file" class="drop-zone__input" id="uploadFiles" name="files" accept=".csv" multiple>
+        <!-- Generate Report and Invoice Section -->
+        <div id="generate-report" class="section" style="display: none;">
+            <h2>Generate Report and Invoice</h2>
+            <form id="report-form" method="POST" action="/upload" enctype="multipart/form-data" onsubmit="return validateForm()">
+                <div class="mb-3">
+                    <label for="reportVersion" class="form-label">Report Version</label>
+                    <select class="form-select" id="reportVersion" name="reportVersion" required>
+                        <option value="select-the-option">Select Version</option> <!-- Default invalid option -->
+                        <option value="V1">V1</option>
+                        <option value="V2">V2</option>
+                    </select>
                 </div>
-            </div>
+
+                <!-- Drag-and-Drop Zone for File Upload -->
+                <div class="mb-3">
+                    <label for="uploadFiles" class="form-label">Upload CSV Files</label>
+                    <div id="drop-zone" class="drop-zone">
+                        <span class="drop-zone__prompt">Drag & drop your files here or click to select files</span>
+                        <input type="file" class="drop-zone__input" id="uploadFiles" name="files" accept=".csv" multiple>
+                    </div>
+                </div>
+
+                <!-- Display the uploaded file names -->
+                <div id="file-names" class="mt-2"></div> <!-- This div will display the file names -->
+
+                <button type="submit" class="btn btn-primary">Upload</button>
+            </form>
+        </div>
+
         
-            <!-- Display the uploaded file names -->
-            <div id="file-names" class="mt-2"></div> <!-- This div will display the file names -->
-        
-            <button type="submit" class="btn btn-primary">Generate</button>
-        </form>
-        
-
-
-
-
 
         <!-- Invoice Section -->
         <div id="invoice" class="section" style="display: none;">
@@ -138,12 +139,14 @@
                 <!-- Bank Name: Dropdown from bank_data -->
                 <div class="mb-3">
                     <label for="bankName" class="form-label">Bank Name</label>
-                    <select class="form-select" id="bankName" name="bank_name" required>
+                    <select class="form-select" id="bankName" name="bank_id" required>
                         {% for bank in banks %}
-                            <option value="{{ bank[1] }}">{{ bank[2] }}</option>
+                            <option value="{{ bank[0] }}">{{ bank[2] }}</option> <!-- bank[0]: ID, bank[2]: Bank Name -->
                         {% endfor %}
                     </select>
                 </div>
+
+
                 <div class="mb-3">
                     <label for="tieringName" class="form-label">Tiering Name</label>
                     <input type="text" class="form-control" id="tieringName" name="tiering_name" required>
@@ -192,6 +195,7 @@
                 <thead>
                     <tr>
                         <th>ID</th>
+                        <th>Bank Code</th> <!-- Add this column -->
                         <th>Bank Name</th>
                         <th>Tiering Name</th>
                         <th>Minimum Transaksi</th>
@@ -206,13 +210,14 @@
                     {% for invoice in invoices %}
                     <tr>
                         <td>{{ invoice[0] }}</td>
-                        <td>{{ invoice[1] }}</td>
-                        <td>{{ invoice[2] }}</td>
+                        <td>{{ invoice[1] }}</td> <!-- bank_code is at index 1 -->
+                        <td>{{ invoice[2] }}</td> <!-- bank_name is at index 2 -->
                         <td>{{ invoice[3] }}</td>
                         <td>{{ invoice[4] }}</td>
                         <td>{{ invoice[5] }}</td>
                         <td>{{ invoice[6] }}</td>
                         <td>{{ invoice[7] }}</td>
+                        <td>{{ invoice[8] }}</td>
                         <td>
                             <a href="{{ url_for('edit_invoice', invoice_id=invoice[0]) }}" class="btn btn-sm btn-warning">Edit</a>
                             <form method="POST" action="{{ url_for('delete_invoice', invoice_id=invoice[0]) }}" style="display:inline;">
@@ -226,6 +231,7 @@
             {% else %}
             <p>No invoices have been added yet.</p>
             {% endif %}
+
 
 
 
