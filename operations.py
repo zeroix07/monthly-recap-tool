@@ -53,6 +53,7 @@ def get_bank_by_id(bank_id):
     conn.close()
     return bank
 
+
 def update_bank_data(bank_id, bank_code, bank_name, version):
     conn = sqlite3.connect('database/recap_invoice.db')
     cursor = conn.cursor()
@@ -93,13 +94,13 @@ def create_table_if_not_exists():
     conn.commit()
     conn.close()
 
-def save_invoice_data(bank_name, tiering_name, trx_minimum, trx_finance, finance_price, trx_nonfinance, nonfinance_price):
+def save_invoice_data(bank_code, bank_name, tiering_name, trx_minimum, trx_finance, finance_price, trx_nonfinance, nonfinance_price):
     conn = sqlite3.connect('database/recap_invoice.db')
     cursor = conn.cursor()
 
-    # Create the invoice table if it doesn't exist
     cursor.execute('''CREATE TABLE IF NOT EXISTS invoice_data (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        bank_code TEXT NOT NULL,
                         bank_name TEXT NOT NULL,
                         tiering_name TEXT NOT NULL,
                         trx_minimum INTEGER NOT NULL,
@@ -107,37 +108,35 @@ def save_invoice_data(bank_name, tiering_name, trx_minimum, trx_finance, finance
                         finance_price INTEGER NOT NULL,
                         trx_nonfinance INTEGER NOT NULL,
                         nonfinance_price INTEGER NOT NULL,
-                        UNIQUE(bank_name, tiering_name, trx_minimum, trx_finance, finance_price, trx_nonfinance, nonfinance_price)
+                        UNIQUE(bank_code, bank_name, tiering_name, trx_minimum, trx_finance, finance_price, trx_nonfinance, nonfinance_price)
                     )''')
 
-    # Check if the same invoice data already exists
-    cursor.execute('''SELECT * FROM invoice_data WHERE bank_name = ? AND tiering_name = ? AND trx_minimum = ? 
-                      AND trx_finance = ? AND finance_price = ? AND trx_nonfinance = ? AND nonfinance_price = ?''',
-                   (bank_name, tiering_name, trx_minimum, trx_finance, finance_price, trx_nonfinance, nonfinance_price))
+    cursor.execute('''SELECT * FROM invoice_data WHERE bank_code = ? AND bank_name = ? AND tiering_name = ? 
+                      AND trx_minimum = ? AND trx_finance = ? AND finance_price = ? AND trx_nonfinance = ? AND nonfinance_price = ?''',
+                   (bank_code, bank_name, tiering_name, trx_minimum, trx_finance, finance_price, trx_nonfinance, nonfinance_price))
     result = cursor.fetchone()
 
     if result:
-        # Entry already exists, do not insert again
         conn.close()
-        return False  # Indicate failure due to duplicate
+        return False
     else:
-        # Insert the new record
-        cursor.execute('''INSERT INTO invoice_data (bank_name, tiering_name, trx_minimum, trx_finance, finance_price, trx_nonfinance, nonfinance_price)
-                          VALUES (?, ?, ?, ?, ?, ?, ?)''',
-                       (bank_name, tiering_name, trx_minimum, trx_finance, finance_price, trx_nonfinance, nonfinance_price))
+        cursor.execute('''INSERT INTO invoice_data (bank_code, bank_name, tiering_name, trx_minimum, trx_finance, finance_price, trx_nonfinance, nonfinance_price)
+                          VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+                       (bank_code, bank_name, tiering_name, trx_minimum, trx_finance, finance_price, trx_nonfinance, nonfinance_price))
         conn.commit()
         conn.close()
-        return True  # Indicate success
+        return True
 
 
-def update_invoice_data(invoice_id, bank_name, tiering_name, trx_minimum, trx_finance, finance_price, trx_nonfinance, nonfinance_price):
+
+def update_invoice_data(invoice_id, bank_code, bank_name, tiering_name, trx_minimum, trx_finance, finance_price, trx_nonfinance, nonfinance_price):
     conn = sqlite3.connect('database/recap_invoice.db')
     cursor = conn.cursor()
     
     cursor.execute('''UPDATE invoice_data
-                      SET bank_name = ?, tiering_name = ?, trx_minimum = ?, trx_finance = ?, finance_price = ?, trx_nonfinance = ?, nonfinance_price = ?
+                      SET bank_code = ?, bank_name = ?, tiering_name = ?, trx_minimum = ?, trx_finance = ?, finance_price = ?, trx_nonfinance = ?, nonfinance_price = ?
                       WHERE id = ?''',
-                   (bank_name, tiering_name, trx_minimum, trx_finance, finance_price, trx_nonfinance, nonfinance_price, invoice_id))
+                   (bank_code, bank_name, tiering_name, trx_minimum, trx_finance, finance_price, trx_nonfinance, nonfinance_price, invoice_id))
     conn.commit()
     conn.close()
 

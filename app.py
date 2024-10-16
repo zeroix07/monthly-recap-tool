@@ -13,6 +13,7 @@ app = Flask(__name__)
 app.secret_key = 'supersecretkey'
 
 
+
 @app.after_request
 def add_header(response):
     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
@@ -29,12 +30,18 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 @app.route('/data_invoice', methods=['GET', 'POST'])
 def data_invoice():
-    # Fetch the bank data from the database
     banks = get_all_banks()
 
     if request.method == 'POST':
-        # Get form data
-        bank_name = request.form['bank_name']
+        bank_id = request.form.get('bank_id')  # Get the bank ID from the form
+        bank = get_bank_by_id(bank_id)
+        if bank:
+            bank_code = bank[1]  # bank[1] is bank_code
+            bank_name = bank[2]  # bank[2] is bank_name
+        else:
+            flash('Selected bank not found.', 'danger')
+            return redirect(url_for('dashboard', show_section='invoice'))
+
         tiering_name = request.form['tiering_name']
         trx_minimum = request.form['trx_minimum']
         trx_finance = request.form['trx_finance']
@@ -42,17 +49,14 @@ def data_invoice():
         trx_nonfinance = request.form['trx_nonfinance']
         nonfinance_price = request.form['nonfinance_price']
 
-        # Save the invoice data to the database
-        success = save_invoice_data(bank_name, tiering_name, trx_minimum, trx_finance, finance_price, trx_nonfinance, nonfinance_price)
+        success = save_invoice_data(bank_code, bank_name, tiering_name, trx_minimum, trx_finance, finance_price, trx_nonfinance, nonfinance_price)
 
         if success:
             flash('Invoice data saved successfully!', 'success')
         else:
             flash('Duplicate entry! The same invoice data already exists.', 'warning')
 
-    # Fetch all invoices after insert
     invoices = get_all_invoices()
-
     return render_template('dashboard.html', banks=banks, invoices=invoices, show_section='invoice')
 
 
@@ -60,8 +64,15 @@ def data_invoice():
 @app.route('/edit_invoice/<int:invoice_id>', methods=['GET', 'POST'])
 def edit_invoice(invoice_id):
     if request.method == 'POST':
-        # Get updated form data
-        bank_name = request.form['bank_name']
+        bank_id = request.form.get('bank_id')
+        bank = get_bank_by_id(bank_id)
+        if bank:
+            bank_code = bank[1]  # bank_code
+            bank_name = bank[2]  # bank_name
+        else:
+            flash('Selected bank not found.', 'danger')
+            return redirect(url_for('data_invoice'))
+
         tiering_name = request.form['tiering_name']
         trx_minimum = request.form['trx_minimum']
         trx_finance = request.form['trx_finance']
@@ -70,7 +81,8 @@ def edit_invoice(invoice_id):
         nonfinance_price = request.form['nonfinance_price']
 
         # Update the invoice data
-        update_invoice_data(invoice_id, bank_name, tiering_name, trx_minimum, trx_finance, finance_price, trx_nonfinance, nonfinance_price)
+        update_invoice_data(invoice_id, bank_code, bank_name, tiering_name, trx_minimum, trx_finance,
+                            finance_price, trx_nonfinance, nonfinance_price)
         flash('Invoice updated successfully!', 'success')
 
         return redirect(url_for('data_invoice'))
@@ -78,7 +90,16 @@ def edit_invoice(invoice_id):
     # Fetch the existing invoice data to pre-fill the form
     invoice = get_invoice_by_id(invoice_id)
     banks = get_all_banks()
-    return render_template('edit_invoice.html', invoice=invoice, banks=banks)
+
+    # Find the bank ID corresponding to the invoice's bank_code
+    invoice_bank_id = None
+    for bank in banks:
+        if bank[1] == invoice[1]:  # bank[1] is bank_code
+            invoice_bank_id = bank[0]  # bank[0] is bank_id
+            break
+
+    return render_template('edit_invoice.html', invoice=invoice, banks=banks, invoice_bank_id=invoice_bank_id)
+
 
 
 @app.route('/delete_invoice/<int:invoice_id>', methods=['POST'])
@@ -91,11 +112,12 @@ def delete_invoice(invoice_id):
 
 @app.route('/get_bank_code/<int:bank_id>', methods=['GET'])
 def get_bank_code(bank_id):
-    bank = get_bank_by_id(bank_id)  # Assuming bank[1] is bank_code
+    bank = get_bank_by_id(bank_id)
     if bank:
-        return {"bank_code": bank[1]}  # Ensure bank[1] is the bank_code
+        return {"bank_code": bank[1]}  # bank_code is at index 1
     else:
         return {"error": "Bank not found"}, 404
+
 
 
 
@@ -183,8 +205,8 @@ def dashboard():
     return render_template('dashboard.html', banks=banks, show_section=show_section)
 
 
-# Route to display form and upload CSV
-@app.route('/', methods=['GET', 'POST'])
+# Change the route from '/' to '/upload'
+@app.route('/upload', methods=['GET', 'POST'])
 def upload_file():
     if request.method == 'POST':
         files = request.files.getlist('files')  # Get the list of uploaded files
@@ -203,7 +225,10 @@ def upload_file():
         # Redirect to the report generation page with the list of filenames
         return redirect(url_for('generate_report', filenames=",".join(file_paths)))
 
-    return render_template('upload.html')
+    # Since the form is in dashboard.html, you might not need to render 'upload.html' here
+    # But if you still want to render 'upload.html' on GET request to '/upload', you can keep this
+    return render_template('dashboard.html')
+
 
 month_names_indonesian = [
     "", "Januari", "Februari", "Maret", "April", "Mei", "Juni", 
@@ -264,7 +289,7 @@ def generate_report(filenames):
         })
 
     # Render the reports page, passing multiple reports
-    return render_template('dashboard.html', reports=reports, filenames=filenames, show_section='generate-report')
+    return render_template('pivot_report.html', reports=reports, filenames=filenames)
 
 
 # Export route to generate Excel file in the same format as pivot report
@@ -772,7 +797,7 @@ def invoice_combine(filenames):
             allowed_non_finance_keterangans = [
                 "Account Statement Inquiry", "CIF Inquiry",
                 "Deposit Accounts Inquiry", "Loan Accounts Inquiry", "Mini Statement"
-            ]
+            ]   
 
             for filepath, finance_type in files:
                 # Read the CSV file
