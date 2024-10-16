@@ -17,9 +17,9 @@
                 <a href="/" class="btn btn-secondary">Back</a>
 
                 <!-- Export Button -->
-                <a href="{{ url_for('export_to_excel', filenames=filenames) }}" class="btn btn-success">Export to Excel</a>
+                <!-- <a href="{{ url_for('export_to_excel', filenames=filenames) }}" class="btn btn-success">Export to Excel</a> -->
                 <!-- Generate Invoice Button -->
-                <a href="{{ url_for('generate_invoice_to_excel', filenames=filenames) }}" class="btn btn-primary">Generate Invoice</a>
+                <a href="{{ url_for('invoice_combine', filenames=filenames) }}" class="btn btn-primary">Generate Invoice</a>
 
             </div>
         </div>
