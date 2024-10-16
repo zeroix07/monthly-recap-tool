@@ -1,0 +1,23 @@
+/* Drag and Drop File Upload Styles */
+.drop-zone {
+    border: 2px dashed #cccccc;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    border-radius: 6px;
+}
+
+.drop-zone--over {
+    background-color: #f0f8ff;
+}
+
+.drop-zone__prompt {
+    font-size: 16px;
+    color: #888888;
+}
+
+.drop-zone__input {
+    display: none;
+}
+

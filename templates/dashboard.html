@@ -4,12 +4,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard</title>
+    <title>Rekap Transaksi Invoice Bulanan</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Static files with cache busting -->
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/dashboard-style.css') }}?v={{ time }}">
-    
+    <!-- Include upload-style.css for consistent styling -->
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/generate-report-style.css') }}?v={{ time }}">
+
 </head>
+
 
 <body>
     <!-- Sidebar -->
@@ -22,12 +25,13 @@
 
     <!-- Main content area -->
     <div class="content">
+        <!-- Welcome Section -->
         <div id="welcome">
             <h2>Welcome to Admin Dashboard</h2>
-            <p>Use the sidebar to navigate between different functionalities.</p>
+            <p>Use the sidebar to navigate all the feature.</p>
         </div>
 
-        <!-- Data Bank Section (Previously Add Data Bank) -->
+        <!-- Data Bank Section -->
         <div id="data-bank" class="section" style="display: none;">
             <h2>Data Bank</h2>
             <form id="bank-form" method="POST" action="/add_bank">
@@ -48,10 +52,24 @@
                 </div>
                 <button type="submit" class="btn btn-primary">Save</button>
             </form>
+            <br>
+            <!-- Flash Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div class="alert-container">
+                {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endwith %}
 
             <!-- Check if banks exist -->
             {% if banks %}
-            <h3>Existing Banks</h3>
+            <h3>Data Bank</h3>
             <table class="table table-bordered mt-4">
                 <thead>
                     <tr>
@@ -65,10 +83,10 @@
                 <tbody>
                     {% for bank in banks %}
                     <tr>
-                        <td>{{ bank[0] }}</td> <!-- ID -->
-                        <td>{{ bank[1] }}</td> <!-- Bank Code -->
-                        <td>{{ bank[2] }}</td> <!-- Bank Name -->
-                        <td>{{ bank[3] }}</td> <!-- Version -->
+                        <td>{{ bank[0] }}</td>
+                        <td>{{ bank[1] }}</td>
+                        <td>{{ bank[2] }}</td>
+                        <td>{{ bank[3] }}</td>
                         <td>
                             <a href="{{ url_for('edit_bank', bank_id=bank[0]) }}" class="btn btn-sm btn-warning">Update</a>
                             <a href="{{ url_for('delete_bank', bank_id=bank[0]) }}" class="btn btn-sm btn-danger"
@@ -83,44 +101,40 @@
             {% endif %}
         </div>
 
+        <form id="report-form" method="POST" enctype="multipart/form-data" onsubmit="return validateForm()">
+            <div class="mb-3">
+                <label for="reportVersion" class="form-label">Report Version</label>
+                <select class="form-select" id="reportVersion" required>
+                    <option value="select-the-option">Select Version</option> <!-- Default invalid option -->
+                    <option value="V1">V1</option>
+                    <option value="V2">V2</option>
+                </select>
+            </div>
         
+            <!-- Drag-and-Drop Zone for File Upload -->
+            <div class="mb-3">
+                <label for="uploadFiles" class="form-label">Upload CSV Files</label>
+                <div id="drop-zone" class="drop-zone">
+                    <span class="drop-zone__prompt">Drag & drop your files here or click to select files</span>
+                    <input type="file" class="drop-zone__input" id="uploadFiles" name="files" accept=".csv" multiple>
+                </div>
+            </div>
+        
+            <!-- Display the uploaded file names -->
+            <div id="file-names" class="mt-2"></div> <!-- This div will display the file names -->
+        
+            <button type="submit" class="btn btn-primary">Generate</button>
+        </form>
         
 
-        <!-- Generate Report and Invoice Section -->
-        <div id="generate-report" class="section" style="display: none;">
-            <h2>Generate Report and Invoice</h2>
-            <form id="report-form">
-                <div class="mb-3">
-                    <label for="reportVersion" class="form-label">Report Version</label>
-                    <select class="form-select" id="reportVersion" required>
-                        <option value="V1">V1</option>
-                        <option value="V2">V2</option>
-                    </select>
-                </div>
-                <div class="mb-3">
-                    <label for="uploadFiles" class="form-label">Upload CSV Files</label>
-                    <input type="file" class="form-control" id="uploadFiles" accept=".csv" multiple required>
-                </div>
-                <button type="submit" class="btn btn-primary">Generate</button>
-            </form>
-        </div>
+
+
+
 
         <!-- Invoice Section -->
         <div id="invoice" class="section" style="display: none;">
             <h2>Invoice</h2>
-            <form id="invoice-form" method="POST" action="/invoice">
-                <!-- Bank Code: Disable input and use selected bank code -->
-                <div class="mb-3">
-                    <label for="bankCode" class="form-label">Bank Code</label>
-                    {% if banks %}
-                    <input type="text" class="form-control" id="bankCode" name="bank_code" 
-                        value="{{ banks[0][1] }}" readonly disabled>
-                    {% else %}
-                    <input type="text" class="form-control" id="bankCode" name="bank_code" 
-                        value="No banks available" readonly disabled>
-                    {% endif %}
-                </div>
-
+            <form id="invoice-form" method="POST" action="/data_invoice">
                 <!-- Bank Name: Dropdown from bank_data -->
                 <div class="mb-3">
                     <label for="bankName" class="form-label">Bank Name</label>
@@ -130,7 +144,6 @@
                         {% endfor %}
                     </select>
                 </div>
-                <!-- Other fields in the form remain the same -->
                 <div class="mb-3">
                     <label for="tieringName" class="form-label">Tiering Name</label>
                     <input type="text" class="form-control" id="tieringName" name="tiering_name" required>
@@ -157,11 +170,69 @@
                 </div>
                 <button type="submit" class="btn btn-primary">Save</button>
             </form>
-        </div>
+            <br>
+            <!-- Flash Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div class="alert-container">
+                {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endwith %}
+
+            <!-- Display the saved invoices -->
+            {% if invoices %}
+            <h3>Data Invoice</h3>
+            <table class="table table-bordered mt-4">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Bank Name</th>
+                        <th>Tiering Name</th>
+                        <th>Minimum Transaksi</th>
+                        <th>Jumlah Transaksi Finansial</th>
+                        <th>Harga Finansial</th>
+                        <th>Jumlah Transaksi Non-Finansial</th>
+                        <th>Harga Non-Finansial</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for invoice in invoices %}
+                    <tr>
+                        <td>{{ invoice[0] }}</td>
+                        <td>{{ invoice[1] }}</td>
+                        <td>{{ invoice[2] }}</td>
+                        <td>{{ invoice[3] }}</td>
+                        <td>{{ invoice[4] }}</td>
+                        <td>{{ invoice[5] }}</td>
+                        <td>{{ invoice[6] }}</td>
+                        <td>{{ invoice[7] }}</td>
+                        <td>
+                            <a href="{{ url_for('edit_invoice', invoice_id=invoice[0]) }}" class="btn btn-sm btn-warning">Edit</a>
+                            <form method="POST" action="{{ url_for('delete_invoice', invoice_id=invoice[0]) }}" style="display:inline;">
+                                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure you want to delete this invoice?');">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p>No invoices have been added yet.</p>
+            {% endif %}
 
 
+
+    <!-- Bootstrap JavaScript -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-
+    <script src="{{ url_for('static', filename='js/dashboard-script.js') }}"></script>
+    <!-- JavaScript for section navigation and dynamic form updates -->
     <script>
         // Get the section to be shown from Flask (if passed)
         const showSection = "{{ show_section }}";
@@ -174,21 +245,17 @@
             });
         });
     
-        // If 'show_section' is provided by Flask, show that section by default
+        // Show the section passed from Flask if available
         if (showSection) {
             document.querySelectorAll('.section').forEach(div => div.style.display = 'none');
             document.getElementById(showSection).style.display = 'block';
         }
+
+        // Update Bank Code based on selected Bank Name
         document.getElementById('bankName').addEventListener('change', function () {
-            // Get the selected bank's index
             const selectedBankIndex = this.selectedIndex;
-    
-            // Get the corresponding bank code from the banks list (passed from Flask)
-            const bankCodeInput = document.getElementById('bankCode');
             const bankCodes = {{ banks | tojson }};
-            
-            // Set the bank code field based on the selected bank
-            bankCodeInput.value = bankCodes[selectedBankIndex][1];  // Assuming bank[1] is the code
+            // If needed, update other related fields here based on the bank selection
         });
     </script>
     

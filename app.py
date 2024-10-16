@@ -5,7 +5,8 @@ import os
 import io
 import re
 import numpy as np
-from operations import save_bank_data, get_all_banks, update_bank_data, get_bank_by_id, delete_bank_data, create_table_if_not_exists
+from operations import save_bank_data, get_all_banks, update_bank_data, get_bank_by_id, delete_bank_data, create_table_if_not_exists, save_invoice_data, get_all_invoices
+from operations import update_invoice_data, get_invoice_by_id, delete_invoice_data
 from time import time
 
 app = Flask(__name__)
@@ -25,98 +26,161 @@ if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# @app.route('/get_bank_code/<int:bank_id>', methods=['GET'])
-# def get_bank_code(bank_id):
-#     bank = get_bank_by_id(bank_id)  # Assuming bank[1] is bank_code
-#     if bank:
-#         return {"bank_code": bank[1]}  # Ensure bank[1] is the bank_code
-#     else:
-#         return {"error": "Bank not found"}, 404
+
+@app.route('/data_invoice', methods=['GET', 'POST'])
+def data_invoice():
+    # Fetch the bank data from the database
+    banks = get_all_banks()
+
+    if request.method == 'POST':
+        # Get form data
+        bank_name = request.form['bank_name']
+        tiering_name = request.form['tiering_name']
+        trx_minimum = request.form['trx_minimum']
+        trx_finance = request.form['trx_finance']
+        finance_price = request.form['finance_price']
+        trx_nonfinance = request.form['trx_nonfinance']
+        nonfinance_price = request.form['nonfinance_price']
+
+        # Save the invoice data to the database
+        success = save_invoice_data(bank_name, tiering_name, trx_minimum, trx_finance, finance_price, trx_nonfinance, nonfinance_price)
+
+        if success:
+            flash('Invoice data saved successfully!', 'success')
+        else:
+            flash('Duplicate entry! The same invoice data already exists.', 'warning')
+
+    # Fetch all invoices after insert
+    invoices = get_all_invoices()
+
+    return render_template('dashboard.html', banks=banks, invoices=invoices, show_section='invoice')
 
 
 
-# @app.route('/data_invoice', methods=['GET', 'POST'])
-# def data_invoice():
-#     # Fetch the bank data from the bank_data table (replace this with your actual query)
-#     banks = get_all_banks()  # Example function to fetch bank_code and bank_name from the database
+@app.route('/edit_invoice/<int:invoice_id>', methods=['GET', 'POST'])
+def edit_invoice(invoice_id):
+    if request.method == 'POST':
+        # Get updated form data
+        bank_name = request.form['bank_name']
+        tiering_name = request.form['tiering_name']
+        trx_minimum = request.form['trx_minimum']
+        trx_finance = request.form['trx_finance']
+        finance_price = request.form['finance_price']
+        trx_nonfinance = request.form['trx_nonfinance']
+        nonfinance_price = request.form['nonfinance_price']
 
-#     if request.method == 'POST':
-#         # Process the form data here (bank_code, bank_name, etc.)
-#         bank_name = request.form['bank_name']
-#         # Add your form handling logic here
+        # Update the invoice data
+        update_invoice_data(invoice_id, bank_name, tiering_name, trx_minimum, trx_finance, finance_price, trx_nonfinance, nonfinance_price)
+        flash('Invoice updated successfully!', 'success')
 
-#     return render_template('dashboard.html', banks=banks, show_section='invoice')
+        return redirect(url_for('data_invoice'))
 
-
-# @app.route('/add_bank', methods=['POST', 'GET'])
-# def add_bank():
-#     if request.method == 'POST':
-#         bank_code = request.form['bank_code']
-#         bank_name = request.form['bank_name']
-#         version = request.form['version']
-
-#         # Save the new bank data
-#         success = save_bank_data(bank_code, bank_name, version)
-
-#         if success:
-#             flash('Bank data added successfully!', 'success')
-#         else:
-#             flash('Duplicate entry! Bank data already exists.', 'warning')
-
-#     # Fetch all bank data after insert
-#     banks = get_all_banks()
-
-#     # Render the dashboard with the 'add-data-bank' section visible
-#     return render_template('dashboard.html', banks=banks, show_section='data-bank')
+    # Fetch the existing invoice data to pre-fill the form
+    invoice = get_invoice_by_id(invoice_id)
+    banks = get_all_banks()
+    return render_template('edit_invoice.html', invoice=invoice, banks=banks)
 
 
-# @app.route('/edit_bank/<int:bank_id>', methods=['GET', 'POST'])
-# def edit_bank(bank_id):
-#     if request.method == 'POST':
-#         bank_code = request.form['bank_code']
-#         bank_name = request.form['bank_name']
-#         version = request.form['version']
-
-#         # Update the bank record
-#         update_bank_data(bank_id, bank_code, bank_name, version)
-
-#         flash('Bank data updated successfully!', 'success')
-#         return redirect(url_for('add_bank'))
-
-#     # If GET, fetch the bank record
-#     bank = get_bank_by_id(bank_id)
-#     return render_template('edit_bank.html', bank=bank)
-
-
-# @app.route('/delete_bank/<int:bank_id>', methods=['GET'])
-# def delete_bank(bank_id):
-#     # Delete the bank data
-#     delete_bank_data(bank_id)
-
-#     flash('Bank data deleted successfully!', 'success')
-
-#     # Fetch all bank data after deletion
-#     banks = get_all_banks()
-
-#     # Render the dashboard with the 'add-data-bank' section visible
-#     return render_template('dashboard.html', banks=banks, show_section='data-bank')
+@app.route('/delete_invoice/<int:invoice_id>', methods=['POST'])
+def delete_invoice(invoice_id):
+    delete_invoice_data(invoice_id)
+    flash('Invoice deleted successfully!', 'success')
+    return redirect(url_for('data_invoice'))
 
 
 
-# @app.route('/', methods=['GET'])
-# def dashboard():
-#     create_table_if_not_exists()
+@app.route('/get_bank_code/<int:bank_id>', methods=['GET'])
+def get_bank_code(bank_id):
+    bank = get_bank_by_id(bank_id)  # Assuming bank[1] is bank_code
+    if bank:
+        return {"bank_code": bank[1]}  # Ensure bank[1] is the bank_code
+    else:
+        return {"error": "Bank not found"}, 404
 
-#     banks = get_all_banks()
 
-#     # If no banks exist, pass an empty list
-#     if not banks:
-#         banks = []
 
-#     show_section = request.args.get('show_section', 'welcome')
+@app.route('/data__bank_invoice', methods=['GET', 'POST'])
+def data__bank_invoice(): 
+    # Fetch the bank data from the bank_data table (replace this with your actual query)
+    banks = get_all_banks()  # Example function to fetch bank_code and bank_name from the database
 
-#     # Render the template with the banks data
-#     return render_template('dashboard.html', banks=banks, show_section=show_section)
+    if request.method == 'POST':
+        # Process the form data here (bank_code, bank_name, etc.)
+        bank_name = request.form['bank_name']
+        # Add your form handling logic here
+
+    return render_template('dashboard.html', banks=banks, show_section='invoice')
+
+
+@app.route('/add_bank', methods=['POST', 'GET'])
+def add_bank():
+    if request.method == 'POST':
+        bank_code = request.form['bank_code']
+        bank_name = request.form['bank_name']
+        version = request.form['version']
+
+        # Save the new bank data
+        success = save_bank_data(bank_code, bank_name, version)
+
+        if success:
+            flash('Bank data added successfully!', 'success')
+        else:
+            flash('Duplicate entry! Bank data already exists.', 'warning')
+
+    # Fetch all bank data after insert
+    banks = get_all_banks()
+
+    # Render the dashboard with the 'add-data-bank' section visible
+    return render_template('dashboard.html', banks=banks, show_section='data-bank')
+
+
+@app.route('/edit_bank/<int:bank_id>', methods=['GET', 'POST'])
+def edit_bank(bank_id):
+    if request.method == 'POST':
+        bank_code = request.form['bank_code']
+        bank_name = request.form['bank_name']
+        version = request.form['version']
+
+        # Update the bank record
+        update_bank_data(bank_id, bank_code, bank_name, version)
+
+        flash('Bank data updated successfully!', 'success')
+        return redirect(url_for('add_bank'))
+
+    # If GET, fetch the bank record
+    bank = get_bank_by_id(bank_id)
+    return render_template('edit_bank.html', bank=bank)
+
+
+@app.route('/delete_bank/<int:bank_id>', methods=['GET'])
+def delete_bank(bank_id):
+    # Delete the bank data
+    delete_bank_data(bank_id)
+
+    flash('Bank data deleted successfully!', 'success')
+
+    # Fetch all bank data after deletion
+    banks = get_all_banks()
+
+    # Render the dashboard with the 'add-data-bank' section visible
+    return render_template('dashboard.html', banks=banks, show_section='data-bank')
+
+
+
+@app.route('/', methods=['GET'])
+def dashboard():
+    create_table_if_not_exists()
+
+    banks = get_all_banks()
+
+    # If no banks exist, pass an empty list
+    if not banks:
+        banks = []
+
+    show_section = request.args.get('show_section', 'welcome')
+
+    # Render the template with the banks data
+    return render_template('dashboard.html', banks=banks, show_section=show_section)
 
 
 # Route to display form and upload CSV
@@ -200,7 +264,7 @@ def generate_report(filenames):
         })
 
     # Render the reports page, passing multiple reports
-    return render_template('pivot_report.html', reports=reports, filenames=filenames)
+    return render_template('dashboard.html', reports=reports, filenames=filenames, show_section='generate-report')
 
 
 # Export route to generate Excel file in the same format as pivot report
@@ -770,11 +834,11 @@ def invoice_combine(filenames):
         worksheet.write(0, col_position, "Minimum Transaksi: Rp. 25,000,000", bold_format)
         row_position = 2
 
-        worksheet.write(row_position, col_position, "Transaksi:", bold_format)
-        worksheet.write(row_position, col_position + 1, f"{month_name} {year}", bold_format)
-        worksheet.write(row_position, col_position + 2, "Jumlah Trx", bold_format)
-        worksheet.write(row_position, col_position + 3, "Harga", bold_format)
-        worksheet.write(row_position, col_position + 4, "Tagihan", bold_format)
+        worksheet.write(row_position, col_position, "Transaksi:", bold_border_format_blue)
+        worksheet.write(row_position, col_position + 1, f"{month_name} {year}", bold_border_format_blue)
+        worksheet.write(row_position, col_position + 2, "Jumlah Trx", bold_border_format_blue)
+        worksheet.write(row_position, col_position + 3, "Harga", bold_border_format_blue)
+        worksheet.write(row_position, col_position + 4, "Tagihan", bold_border_format_blue)
         row_position += 1
 
         # Finansial
@@ -884,155 +948,6 @@ def invoice_combine(filenames):
     return send_file(excel_output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                      as_attachment=True, download_name=download_name)
 
-
-# @app.route('/invoice/combine/<filenames>', methods=['GET', 'POST'])
-# def invoice_combine(filenames):
-#     file_list = filenames.split(',')
-#     grouped_files = {}
-
-#     # Extract bank code and year/month from the first file for dynamic filename
-#     first_filename = file_list[0]
-#     name_parts = first_filename.split('.')
-#     bank_code = name_parts[0]
-#     year_month = name_parts[2]
-
-#     # Group the files by bank code and channel type
-#     for filename in file_list:
-#         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        
-#         # Split the filename to extract details
-#         name_parts = filename.split('.')
-#         bank_code = name_parts[0]
-#         channel_type = name_parts[1]
-#         finance_type = name_parts[3].replace('.csv', '')
-
-#         key = (bank_code, channel_type)  # Grouping key
-#         if key not in grouped_files:
-#             grouped_files[key] = []
-#         grouped_files[key].append((filepath, finance_type))
-
-#     excel_output = io.BytesIO()
-    
-#     # Create an Excel file for the combined report and invoice
-#     with pd.ExcelWriter(excel_output, engine='xlsxwriter') as writer:
-#         # Writing the 'Rekap' sheet
-#         worksheet_rekap = writer.book.add_worksheet('Rekap')
-#         row_position_rekap = 0
-
-#         # Create 'Invoice' worksheet
-#         worksheet_invoice = writer.book.add_worksheet('Invoice')
-#         row_position_invoice = 0
-
-#         # Formats
-#         bold_format = writer.book.add_format({'bold': True})
-#         bold_font_blue = writer.book.add_format({'bold': True, 'font_size': 14})
-#         border_format_comma = writer.book.add_format({'num_format': '[$-421]#,##0', 'border': 1})
-#         bold_border_format_blue = writer.book.add_format({'bold': True, 'border': 1, 'bg_color': '#87CEEB', 'num_format': '[$Rp. -421]#,##0'})
-#         red_border_format = writer.book.add_format({'bold': True, 'font_color': 'white', 'bg_color': 'red', 'border': 1, 'num_format': '[$Rp. -421]#,##0'})
-
-#         grand_total_finance = 0
-#         grand_total_non_finance = 0
-#         idr_format = writer.book.add_format({'num_format': '[$Rp. -421]#,##0', 'border': 1})
-
-#         # Iterate through the groups for Rekap and Invoice
-#         for (bank_code, channel_type), files in grouped_files.items():
-#             # Dictionary to store aggregated data for invoice
-#             invoice_data = {}
-#             allowed_non_finance_keterangans = [
-#                 "Account Statement Inquiry", 
-#                 "CIF Inquiry", 
-#                 "Deposit Accounts Inquiry", 
-#                 "Loan Accounts Inquiry", "Mini Statement"]
-
-#             for filepath, finance_type in files:
-#                 # Read the CSV file
-#                 df = pd.read_csv(filepath)
-#                 df['datetime'] = df['datetime'].apply(lambda x: re.sub(r'\.\d+', '', x))
-#                 df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce').dt.strftime('%m-%d-%Y')
-#                 df = df.dropna(subset=['datetime'])
-
-#                 # Pivot and aggregate data
-#                 if finance_type == 'finance':
-#                     pivot_df = df.pivot_table(index='keterangan', columns='datetime', values='amount', aggfunc='count', fill_value=0)
-#                     df_agg = df.groupby('keterangan')['amount'].count().reset_index()
-#                 else:
-#                     pivot_df = df.pivot_table(index='keterangan', columns='datetime', values='count', aggfunc='sum', fill_value=0)
-#                     df_agg = df.groupby('keterangan')['count'].sum().reset_index()
-#                     df_agg = df_agg[df_agg['keterangan'].isin(allowed_non_finance_keterangans)]
-
-#                 # Add 'Grand Total' and 'Finance Type'
-#                 pivot_df['Grand Total'] = pivot_df.sum(axis=1)
-#                 pivot_df['Finance Type'] = 'Finansial' if finance_type == 'finance' else 'Non-Finansial'
-
-#                 # Remove multi-level header
-#                 pivot_df.columns = pivot_df.columns.get_level_values(0)
-
-#                 # Write to 'Rekap' sheet
-#                 worksheet_rekap.write(row_position_rekap, 0, f"Rekap Transaksi Bulanan")
-#                 row_position_rekap += 1
-#                 worksheet_rekap.write(row_position_rekap, 0, f"Bank: {bank_code} | Channel Type: {channel_type} | Bulan: {month_names_indonesian[int(year_month[4:])]}, {year_month[:4]}")
-#                 row_position_rekap += 1
-#                 pivot_df.to_excel(writer, sheet_name='Rekap', startrow=row_position_rekap, header=True, index=True)
-#                 row_position_rekap += len(pivot_df) + 4
-
-#                 # Write to 'Invoice' sheet
-#                 for _, row in df_agg.iterrows():
-#                     if row['keterangan'] not in invoice_data:
-#                         invoice_data[row['keterangan']] = {'Non-Finansial': 0, 'Finansial': 0}
-#                     if finance_type == 'finance':
-#                         invoice_data[row['keterangan']]['Finansial'] += row['amount']
-#                     else:
-#                         invoice_data[row['keterangan']]['Non-Finansial'] += row['count']
-
-#             # Calculate Grand Total
-#             grand_total_non_finance += sum([data['Non-Finansial'] for data in invoice_data.values()])
-#             grand_total_finance += sum([data['Finansial'] for data in invoice_data.values()])
-
-#             # Write the bank code and channel type in the 'Invoice' sheet
-#             worksheet_invoice.write(row_position_invoice, 0, f'Bank {bank_code}, {channel_type}', bold_font_blue)
-#             row_position_invoice += 2
-#             worksheet_invoice.write(row_position_invoice, 0, 'Keterangan', bold_border_format_blue)
-#             worksheet_invoice.write(row_position_invoice, 1, 'Non-Finansial', bold_border_format_blue)
-#             worksheet_invoice.write(row_position_invoice, 2, 'Finansial', bold_border_format_blue)
-
-#             # Write the invoice data
-#             row_position_invoice += 1
-#             for keterangan, values in invoice_data.items():
-#                 worksheet_invoice.write(row_position_invoice, 0, keterangan, border_format_comma)
-#                 worksheet_invoice.write(row_position_invoice, 1, values['Non-Finansial'], border_format_comma)
-#                 worksheet_invoice.write(row_position_invoice, 2, values['Finansial'], border_format_comma)
-#                 row_position_invoice += 1
-
-#             # Write Grand Total row in 'Invoice' sheet
-#             worksheet_invoice.write(row_position_invoice, 0, 'Grand Total', bold_border_format_blue)
-#             worksheet_invoice.write(row_position_invoice, 1, sum([data['Non-Finansial'] for data in invoice_data.values()]), border_format_comma)
-#             worksheet_invoice.write(row_position_invoice, 2, sum([data['Finansial'] for data in invoice_data.values()]), border_format_comma)
-#             row_position_invoice += 3
-
-#         # Additional calculation for 'Invoice' worksheet
-#         worksheet_invoice.write(0, 5, "Minimum Transaksi: Rp. 25,000,000", bold_format)
-#         worksheet_invoice.write(2, 5, "Transaksi:", bold_format)
-#         worksheet_invoice.write(2, 6, f"{month_names_indonesian[int(year_month[4:])]} {year_month[:4]}", bold_format)
-#         worksheet_invoice.write(2, 7, "Jumlah Trx", bold_format)
-#         worksheet_invoice.write(2, 8, "Harga", bold_format)
-#         worksheet_invoice.write(2, 9, "Tagihan", bold_format)
-
-#         row_position_invoice = 3
-#         worksheet_invoice.write(row_position_invoice, 5, "Fin", bold_format)
-#         worksheet_invoice.write(row_position_invoice, 6, grand_total_finance, border_format_comma)
-#         worksheet_invoice.write(row_position_invoice, 7, "", border_format_comma)
-#         worksheet_invoice.write(row_position_invoice, 8, "", border_format_comma)
-#         worksheet_invoice.write(row_position_invoice, 9, "", border_format_comma)
-
-#     # Reset file pointer
-#     excel_output.seek(0)
-
-#     # Generate the download name using the first file's details
-#     download_name = f"Transaksi_Bulanan_{bank_code}_{month_names_indonesian[int(year_month[4:])]}_{year_month[:4]}.xlsx"
-
-#     # Send the Excel file to the user
-#     return send_file(excel_output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-#                      as_attachment=True, download_name=download_name)
 
 
 
