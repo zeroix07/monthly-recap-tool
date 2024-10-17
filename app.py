@@ -30,18 +30,21 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 @app.route('/data_invoice', methods=['GET', 'POST'])
 def data_invoice():
-    banks = get_all_banks()
+    banks = get_all_banks()  # Fetch bank data
+    invoices = get_all_invoices()  # Always fetch invoice data
 
     if request.method == 'POST':
-        bank_id = request.form.get('bank_id')  # Get the bank ID from the form
+        # Handle form submission
+        bank_id = request.form.get('bank_id')
         bank = get_bank_by_id(bank_id)
         if bank:
-            bank_code = bank[1]  # bank[1] is bank_code
-            bank_name = bank[2]  # bank[2] is bank_name
+            bank_code = bank[1]  # bank_code
+            bank_name = bank[2]  # bank_name
         else:
             flash('Selected bank not found.', 'danger')
             return redirect(url_for('dashboard', show_section='invoice'))
 
+        # Form data
         tiering_name = request.form['tiering_name']
         trx_minimum = request.form['trx_minimum']
         trx_finance = request.form['trx_finance']
@@ -49,14 +52,14 @@ def data_invoice():
         trx_nonfinance = request.form['trx_nonfinance']
         nonfinance_price = request.form['nonfinance_price']
 
+        # Save invoice data
         success = save_invoice_data(bank_code, bank_name, tiering_name, trx_minimum, trx_finance, finance_price, trx_nonfinance, nonfinance_price)
-
         if success:
             flash('Invoice data saved successfully!', 'success')
         else:
             flash('Duplicate entry! The same invoice data already exists.', 'warning')
 
-    invoices = get_all_invoices()
+    # Render the template with all invoice data passed
     return render_template('dashboard.html', banks=banks, invoices=invoices, show_section='invoice')
 
 
@@ -194,6 +197,7 @@ def dashboard():
     create_table_if_not_exists()
 
     banks = get_all_banks()
+    invoices = get_all_invoices()
 
     # If no banks exist, pass an empty list
     if not banks:
@@ -202,7 +206,7 @@ def dashboard():
     show_section = request.args.get('show_section', 'welcome')
 
     # Render the template with the banks data
-    return render_template('dashboard.html', banks=banks, show_section=show_section)
+    return render_template('dashboard.html', banks=banks, invoices=invoices, show_section=show_section)
 
 
 # Change the route from '/' to '/upload'
@@ -508,7 +512,7 @@ def generate_invoice_to_excel(filenames):
         col_position = 5  # Place 2 cells to the right of the first invoice
         
         # Write calculation header with borders
-        worksheet.write(0, col_position, "Minimum Transaksi: Rp. 25,000,000", bold_format)
+        worksheet.write(0, col_position, "Biaya Minimum: Rp. 25,000,000", bold_format)
         row_position = 2
         
         worksheet.write(row_position, col_position, "Transaksi:", bold_format)
@@ -822,7 +826,9 @@ def invoice_combine(filenames):
             if pivot_df.index.name is None:
                 pivot_df.index.name = 'keterangan'
             # Prepare the headers
-            col_labels = [pivot_df.index.name] + pivot_df.columns.tolist()
+            # Prepare the headers in the new order
+            col_labels = ['keterangan', 'Finance Type', 'Grand Total'] + [col for col in pivot_df.columns if col not in ['Finance Type', 'Grand Total']]
+
             for col_num, value in enumerate(col_labels):
                 worksheet_rekap.write(row_position, col_num, value, header_format)
             # Write the data rows
