@@ -239,63 +239,6 @@ month_names_indonesian = [
     "Juli", "Agustus", "September", "Oktober", "November", "Desember"
 ]
 
-# Route to generate report
-# @app.route('/report/<filenames>')
-# def generate_report(filenames):
-#     file_list = filenames.split(',')  # Get the list of filenames from the URL
-#     reports = []
-
-#     for filename in file_list:
-#         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        
-#         # Split the filename to extract details
-#         name_parts = filename.split('.')
-#         bank_code = name_parts[0]
-#         channel_type = name_parts[1]
-#         year_month = name_parts[2]
-#         finance_type = name_parts[3].replace('.csv', '')
-
-#         # Extract year and month details
-#         year = year_month[:4]
-#         month = int(year_month[4:])
-#         month_name = month_names_indonesian[month]
-
-#         # Read the CSV file
-#         df = pd.read_csv(filepath)
-        
-#         # Use regex to remove the fractional seconds from the datetime strings
-#         df['datetime'] = df['datetime'].apply(lambda x: re.sub(r'\.\d+', '', x))  # Remove everything after the dot (fractional seconds)
-
-#         # Convert the cleaned datetime column to proper datetime format and format as 'mm-dd-yyyy'
-#         df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce').dt.strftime('%m-%d-%Y')
-
-#         # Drop rows where datetime conversion failed
-#         df = df.dropna(subset=['datetime'])
-#         # Pivot the data using the 'count' for non-finance and 'amount' for finance
-#         if finance_type == 'finance':
-#             pivot_df = df.pivot_table(index='keterangan', columns='datetime', values='amount', aggfunc='count', fill_value=0)
-#         else:
-#             pivot_df = df.pivot_table(index='keterangan', columns='datetime', values='count', aggfunc='sum', fill_value=0)
-
-#         # Add 'Grand Total' column
-#         pivot_df['Grand Total'] = pivot_df.sum(axis=1)
-
-#         # Add 'Finance Type' column
-#         pivot_df['Finance Type'] = 'Finansial' if finance_type == 'finance' else 'Non-Finansial'
-
-#         # Store each generated report in a list
-#         reports.append({
-#             'bank_code': bank_code,
-#             'channel_type': channel_type,
-#             'month_name': month_name,
-#             'year': year,
-#             'pivot_table': pivot_df
-#         })
-
-#     # Render the reports page, passing multiple reports
-#     return render_template('pivot_report.html', reports=reports, filenames=filenames)
-
-
 # Export route to generate Excel file in the same format as pivot report
 @app.route('/export/<filenames>')
 def export_to_excel(filenames):
