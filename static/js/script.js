@@ -10,16 +10,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const modal = document.getElementById('modal');
     const closeBtn = document.querySelector('.close-btn');
 
-    // Show the spinner overlay when the form is submitted, but only if files are selected
-    form.addEventListener('submit', function(e) {
-        if (!fileInput.files.length) {
-            e.preventDefault();  // Prevent the form submission if no file is selected
-            modal.style.display = 'flex';  // Show the modal
-        } else {
-            spinnerOverlay.style.display = 'flex';  // Show the spinner overlay
-        }
-    });
-
+    function showSpinner() {
+        const spinnerOverlay = document.getElementById('spinner-overlay');
+        spinnerOverlay.style.display = 'flex';  // Show the spinner
+    }
     // Close the modal when the user clicks on the close button
     closeBtn.addEventListener('click', function() {
         modal.style.display = 'none';  // Hide the modal
