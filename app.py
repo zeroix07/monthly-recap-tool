@@ -9,7 +9,7 @@ from operations import (
     save_bank_data, get_all_banks, update_bank_data, get_bank_by_id, delete_bank_data,
     create_table_if_not_exists, save_invoice_data, get_all_invoices,
     update_invoice_data, get_invoice_by_id, delete_invoice_data,
-    create_selected_filters_table, save_selected_filters, get_selected_filters, get_bank_by_code
+    get_invoice_data_by_bank_code, save_selected_filters, get_selected_filters, get_bank_by_code
 )
 
 from time import time
@@ -739,6 +739,31 @@ def invoice_combine(filenames):
         flash('Please select at least one keterangan to include.', 'warning')
         return redirect(url_for('generate_report', filenames=filenames))
 
+    # Fetch invoice data for the bank_code
+    invoice_data_list = get_invoice_data_by_bank_code(bank_code)
+    if not invoice_data_list:
+        flash(f'No invoice data found for bank code "{bank_code}". Please add the invoice data before proceeding.', 'danger')
+        return redirect(url_for('generate_report', filenames=filenames))
+
+    # Process the invoice data into a more usable form
+    # Create a list of tiers sorted by their order
+    invoice_data = []
+    for row in invoice_data_list:
+        tiering_name = row[0]
+        trx_minimum = row[1]
+        trx_finance = row[2]
+        finance_price = row[3]
+        trx_nonfinance = row[4]
+        nonfinance_price = row[5]
+        invoice_data.append({
+            'tiering_name': tiering_name,
+            'trx_minimum': trx_minimum,
+            'trx_finance': trx_finance,
+            'finance_price': finance_price,
+            'trx_nonfinance': trx_nonfinance,
+            'nonfinance_price': nonfinance_price
+        })
+
     # Proceed to generate the invoice based on selected filters
     excel_output = io.BytesIO()
     # Prepare the month and year for naming
@@ -834,7 +859,7 @@ def invoice_combine(filenames):
             # Update row_position
             row_position += len(pivot_df) + 2 + 2  # Data rows + headers + extra space
 
-        # **Generate 'Invoice' sheet with filtered data**
+        # Generate 'Invoice' sheet with filtered data
         # Dictionary to store data grouped by (bank_code, channel_type)
         grouped_files = {}
         # Group the files by bank code and channel type
@@ -867,7 +892,7 @@ def invoice_combine(filenames):
         # Iterate through the groups and generate the invoices
         for (bank_code, channel_type), files in grouped_files.items():
             # Dictionary to store aggregated data for this group
-            invoice_data = {}
+            invoice_data_values = {}
             for filepath, finance_type in files:
                 # Read the CSV file
                 df = pd.read_csv(filepath)
@@ -884,18 +909,18 @@ def invoice_combine(filenames):
                 if finance_type == 'finance':
                     df_agg = df.groupby('keterangan')['amount'].count().reset_index()
                     for _, row in df_agg.iterrows():
-                        if row['keterangan'] not in invoice_data:
-                            invoice_data[row['keterangan']] = {'Non-Finansial': 0, 'Finansial': 0}
-                        invoice_data[row['keterangan']]['Finansial'] += row['amount']
+                        if row['keterangan'] not in invoice_data_values:
+                            invoice_data_values[row['keterangan']] = {'Non-Finansial': 0, 'Finansial': 0}
+                        invoice_data_values[row['keterangan']]['Finansial'] += row['amount']
                 else:
                     df_agg = df.groupby('keterangan')['count'].sum().reset_index()
                     for _, row in df_agg.iterrows():
-                        if row['keterangan'] not in invoice_data:
-                            invoice_data[row['keterangan']] = {'Non-Finansial': 0, 'Finansial': 0}
-                        invoice_data[row['keterangan']]['Non-Finansial'] += row['count']
+                        if row['keterangan'] not in invoice_data_values:
+                            invoice_data_values[row['keterangan']] = {'Non-Finansial': 0, 'Finansial': 0}
+                        invoice_data_values[row['keterangan']]['Non-Finansial'] += row['count']
             # Calculate Grand Total
-            grand_total_non_finance += sum([data['Non-Finansial'] for data in invoice_data.values()])
-            grand_total_finance += sum([data['Finansial'] for data in invoice_data.values()])
+            grand_total_non_finance += sum([data['Non-Finansial'] for data in invoice_data_values.values()])
+            grand_total_finance += sum([data['Finansial'] for data in invoice_data_values.values()])
             # Write the bank code and channel type
             worksheet.write(row_position, 0, f'Bank {bank_code}, {channel_type}', bold_font_blue)
             row_position += 2  # Leave a blank row
@@ -905,21 +930,23 @@ def invoice_combine(filenames):
             worksheet.write(row_position, 2, 'Finansial', bold_border_format_blue)
             # Write the invoice data
             row_position += 1
-            for keterangan, values in invoice_data.items():
+            for keterangan, values in invoice_data_values.items():
                 worksheet.write(row_position, 0, keterangan, border_format)
                 worksheet.write(row_position, 1, values['Non-Finansial'], border_format_comma)
                 worksheet.write(row_position, 2, values['Finansial'], border_format_comma)
                 row_position += 1
             # Write the Grand Total row
             worksheet.write(row_position, 0, 'Grand Total', bold_border_format_blue)
-            worksheet.write(row_position, 1, sum([data['Non-Finansial'] for data in invoice_data.values()]), border_format_comma)
-            worksheet.write(row_position, 2, sum([data['Finansial'] for data in invoice_data.values()]), border_format_comma)
+            worksheet.write(row_position, 1, sum([data['Non-Finansial'] for data in invoice_data_values.values()]), border_format_comma)
+            worksheet.write(row_position, 2, sum([data['Finansial'] for data in invoice_data_values.values()]), border_format_comma)
             # Add some space before the next invoice
             row_position += 3  # Leave space for the next group of data
+
         # After the invoice table, calculate and display the calculation invoice
-        col_position = 5  # Place 2 cells to the right of the first invoice
+        col_position = 5  # Place cells to the right of the first invoice
         # Write calculation header
-        worksheet.write(0, col_position, "Biaya Minimum: Rp. 25,000,000", bold_format)
+        trx_minimum = invoice_data[0]['trx_minimum']  # Assuming trx_minimum is the same across tiers
+        worksheet.write(0, col_position, f"Biaya Minimum: Rp. {trx_minimum:,}", bold_format)
         row_position = 2
         worksheet.write(row_position, col_position, "Transaksi:", bold_border_format_blue)
         worksheet.write(row_position, col_position + 1, f"{month_name} {year}", bold_border_format_blue)
@@ -934,84 +961,58 @@ def invoice_combine(filenames):
         worksheet.write(row_position, col_position + 3, "", border_format)
         worksheet.write(row_position, col_position + 4, "", border_format)
         remaining_finance = grand_total_finance
-        # Step by step calculation for different ranges
-        # Transaksi Finansial 0 - 10,000
-        calc_1 = min(10000, remaining_finance)
-        worksheet.write(row_position + 1, col_position, "", border_format)
-        worksheet.write(row_position + 1, col_position + 1, "Transaksi Finansial 0 - 10.000", border_format)
-        worksheet.write(row_position + 1, col_position + 2, calc_1, border_format_comma)
-        worksheet.write(row_position + 1, col_position + 3, 1500, idr_format)
-        worksheet.write(row_position + 1, col_position + 4, calc_1 * 1500, idr_format)
-        remaining_finance -= calc_1
-        # Transaksi Finansial 10,001 - 35,000
-        calc_2 = min(25000, remaining_finance)
-        worksheet.write(row_position + 2, col_position, "", border_format)
-        worksheet.write(row_position + 2, col_position + 1, "Transaksi Finansial 10.001 - 35.000", border_format)
-        worksheet.write(row_position + 2, col_position + 2, calc_2, border_format_comma)
-        worksheet.write(row_position + 2, col_position + 3, 1200, idr_format)
-        worksheet.write(row_position + 2, col_position + 4, calc_2 * 1200, idr_format)
-        remaining_finance -= calc_2
-        # Transaksi Finansial 35,001 - 75,000
-        calc_3 = min(40000, remaining_finance)
-        worksheet.write(row_position + 3, col_position, "", border_format)
-        worksheet.write(row_position + 3, col_position + 1, "Transaksi Finansial 35.001 - 75.000", border_format)
-        worksheet.write(row_position + 3, col_position + 2, calc_3, border_format_comma)
-        worksheet.write(row_position + 3, col_position + 3, 1000, idr_format)
-        worksheet.write(row_position + 3, col_position + 4, calc_3 * 1000, idr_format)
-        remaining_finance -= calc_3
-        # Transaksi Finansial 75,001 - 100,000
-        calc_4 = min(25000, remaining_finance)
-        worksheet.write(row_position + 4, col_position, "", border_format)
-        worksheet.write(row_position + 4, col_position + 1, "Transaksi Finansial 75.001 - 100.000", border_format)
-        worksheet.write(row_position + 4, col_position + 2, calc_4, border_format_comma)
-        worksheet.write(row_position + 4, col_position + 3, 800, idr_format)
-        worksheet.write(row_position + 4, col_position + 4, calc_4 * 800, idr_format)
-        remaining_finance -= calc_4
-        # Transaksi Finansial > 100,000
-        calc_5 = remaining_finance
-        worksheet.write(row_position + 5, col_position, "", border_format)
-        worksheet.write(row_position + 5, col_position + 1, "Transaksi Finansial > 100.000", border_format)
-        worksheet.write(row_position + 5, col_position + 2, calc_5, border_format_comma)
-        worksheet.write(row_position + 5, col_position + 3, 600, idr_format)
-        worksheet.write(row_position + 5, col_position + 4, calc_5 * 600, idr_format)
+
+        total_tagihan = 0
+
+        # Process each tier
+        for idx, tier in enumerate(invoice_data):
+            trx_finance = tier['trx_finance']
+            finance_price = tier['finance_price']
+            tiering_name = tier['tiering_name']
+            calc = min(trx_finance, remaining_finance)
+            worksheet.write(row_position + idx + 1, col_position, "", border_format)
+            worksheet.write(row_position + idx + 1, col_position + 1, tiering_name, border_format)
+            worksheet.write(row_position + idx + 1, col_position + 2, calc, border_format_comma)
+            worksheet.write(row_position + idx + 1, col_position + 3, finance_price, idr_format)
+            worksheet.write(row_position + idx + 1, col_position + 4, calc * finance_price, idr_format)
+            total_tagihan += calc * finance_price
+            remaining_finance -= calc
+            if remaining_finance <= 0:
+                break  # No more transactions to process
+
         # Non-Finansial
-        worksheet.write(row_position + 6, col_position, "Non Fin", bold_border_format)
-        worksheet.write(row_position + 6, col_position + 1, grand_total_non_finance, border_format_comma)
-        worksheet.write(row_position + 6, col_position + 2, "", border_format)
-        worksheet.write(row_position + 6, col_position + 3, "", border_format)
-        worksheet.write(row_position + 6, col_position + 4, "", border_format)
-        worksheet.write(row_position + 7, col_position, "", border_format)
-        worksheet.write(row_position + 7, col_position + 1, "", border_format)
-        worksheet.write(row_position + 7, col_position + 2, grand_total_non_finance, border_format_comma)
-        worksheet.write(row_position + 7, col_position + 3, 300, idr_format)
-        worksheet.write(row_position + 7, col_position + 4, grand_total_non_finance * 300, idr_format)
+        row_position += idx + 2
+        worksheet.write(row_position, col_position, "Non Fin", bold_border_format)
+        worksheet.write(row_position, col_position + 1, grand_total_non_finance, border_format_comma)
+        worksheet.write(row_position, col_position + 2, "", border_format)
+        worksheet.write(row_position, col_position + 3, "", border_format)
+        worksheet.write(row_position, col_position + 4, "", border_format)
+
+        # Assume Non-Finansial pricing is from the last tier
+        nonfinance_price = invoice_data[-1]['nonfinance_price']
+
+        worksheet.write(row_position + 1, col_position, "", border_format)
+        worksheet.write(row_position + 1, col_position + 1, "", border_format)
+        worksheet.write(row_position + 1, col_position + 2, grand_total_non_finance, border_format_comma)
+        worksheet.write(row_position + 1, col_position + 3, nonfinance_price, idr_format)
+        worksheet.write(row_position + 1, col_position + 4, grand_total_non_finance * nonfinance_price, idr_format)
+        total_tagihan += grand_total_non_finance * nonfinance_price
+
         # Total row
-        total_tagihan = (
-            calc_1 * 1500 + calc_2 * 1200 + calc_3 * 1000 + calc_4 * 800 + calc_5 * 600 +
-            grand_total_non_finance * 300
-        )
-        worksheet.write(row_position + 8, col_position, "", border_format)
-        worksheet.write(row_position + 8, col_position + 1, "", border_format)
-        worksheet.write(row_position + 8, col_position + 2, "", border_format)
-        worksheet.write(row_position + 8, col_position + 3, "", border_format)
-        worksheet.write(row_position + 8, col_position + 4, "", border_format)
-        worksheet.write(row_position + 9, col_position, "", border_format)
-        worksheet.write(row_position + 9, col_position + 1, "", border_format)
-        worksheet.write(row_position + 9, col_position + 2, "", border_format)
-        worksheet.write(row_position + 9, col_position + 3, "", border_format)
-        worksheet.write(row_position + 9, col_position + 4, "", border_format)
-        worksheet.write(row_position + 10, col_position, "TOTAL", bold_border_format_blue)
-        worksheet.write(row_position + 10, col_position + 1, "", bold_border_format_blue)
-        worksheet.write(row_position + 10, col_position + 2, "", bold_border_format_blue)
-        worksheet.write(row_position + 10, col_position + 3, "", bold_border_format_blue)
-        worksheet.write(row_position + 10, col_position + 4, total_tagihan, bold_border_format_blue)
+        row_position += 3
+        worksheet.write(row_position, col_position, "TOTAL", bold_border_format_blue)
+        worksheet.write(row_position, col_position + 1, "", bold_border_format_blue)
+        worksheet.write(row_position, col_position + 2, "", bold_border_format_blue)
+        worksheet.write(row_position, col_position + 3, "", bold_border_format_blue)
+        worksheet.write(row_position, col_position + 4, total_tagihan, bold_border_format_blue)
+
         # Total Tagihan with red and border
-        total_final = total_tagihan - 25000000
-        worksheet.write(row_position + 11, col_position, "Total Tagihan", red_border_format)
-        worksheet.write(row_position + 11, col_position + 1, "", red_border_format)
-        worksheet.write(row_position + 11, col_position + 2, "", red_border_format)
-        worksheet.write(row_position + 11, col_position + 3, "", red_border_format)
-        worksheet.write(row_position + 11, col_position + 4, total_final, red_border_format)
+        total_final = total_tagihan - trx_minimum
+        worksheet.write(row_position + 1, col_position, "Total Tagihan", red_border_format)
+        worksheet.write(row_position + 1, col_position + 1, "", red_border_format)
+        worksheet.write(row_position + 1, col_position + 2, "", red_border_format)
+        worksheet.write(row_position + 1, col_position + 3, "", red_border_format)
+        worksheet.write(row_position + 1, col_position + 4, total_final, red_border_format)
 
     # Reset file pointer to the start of the stream
     excel_output.seek(0)
@@ -1023,5 +1024,7 @@ def invoice_combine(filenames):
 
 
 
+
 if __name__ == '__main__':
+    get_all_invoices()
     app.run(debug=True)

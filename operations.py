@@ -207,6 +207,20 @@ def get_invoice_by_id(invoice_id):
     conn.close()
     return invoice
 
+def get_invoice_data_by_bank_code(bank_code):
+    conn = sqlite3.connect('database/recap_invoice.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT tiering_name, trx_minimum, trx_finance, finance_price, trx_nonfinance, nonfinance_price
+        FROM invoice_data
+        WHERE bank_code = ?
+        ORDER BY id ASC
+    ''', (bank_code,))
+    data = cursor.fetchall()
+    conn.close()
+    return data  # Returns a list of tuples
+
+
 def save_selected_filters(bank_code, bank_name, finance_keterangans, non_finance_keterangans):
     if bank_name is None:
         raise ValueError("bank_name cannot be None")

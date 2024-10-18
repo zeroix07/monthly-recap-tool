@@ -117,7 +117,7 @@
                             <!-- Close Button -->
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                             <!-- Save Filters Button -->
-                            <button type="submit" class="btn btn-primary" id="generateNowBtn">Save Filters and Generate Now</button>    
+                            <button type="submit" class="btn btn-primary" id="generateNowBtn" value="generate_now">Save Filters and Generate Now</button>    
                         </div>
                     </form>
                 </div>
@@ -157,6 +157,7 @@
         <hr> <!-- Separate each report with a line -->
         {% endfor %}
     </div>
+    
     <!-- Bootstrap JavaScript Bundle with Popper -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="{{ url_for('static', filename='js/pivot-report.js') }}"></script>
