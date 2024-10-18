@@ -12,6 +12,7 @@ table {
 
 th, td {
     padding: 5px;
+    
     text-align: center;
     white-space: nowrap;
 }
@@ -78,4 +79,19 @@ th:first-child, td:first-child {
 .keterangan-list {
     max-height: 300px;
     overflow-y: auto;
+}
+
+#loadingScreen .loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 9999; /* Ensure it stays on top */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    color: white;
 }
