@@ -71,7 +71,8 @@
                                         <div class="form-check">
                                             {% for keterangan in unique_non_finance_keterangans %}
                                             <div class="keterangan-item-non-finance">
-                                                <input class="form-check-input" type="checkbox" name="non_finance_keterangans" value="{{ keterangan }}" id="non_finance_keterangan_{{ loop.index }}">
+                                                <input class="form-check-input" type="checkbox" name="non_finance_keterangans" value="{{ keterangan }}" id="non_finance_keterangan_{{ loop.index }}"
+                                                {% if keterangan in non_finance_selected %} checked {% endif %}>
                                                 <label class="form-check-label" for="non_finance_keterangan_{{ loop.index }}">
                                                     {{ keterangan }}
                                                 </label>
@@ -100,7 +101,8 @@
                                         <div class="form-check">
                                             {% for keterangan in unique_finance_keterangans %}
                                             <div class="keterangan-item-finance">
-                                                <input class="form-check-input" type="checkbox" name="finance_keterangans" value="{{ keterangan }}" id="finance_keterangan_{{ loop.index }}">
+                                                <input class="form-check-input" type="checkbox" name="finance_keterangans" value="{{ keterangan }}" id="finance_keterangan_{{ loop.index }}"
+                                                {% if keterangan in finance_selected %} checked {% endif %}>
                                                 <label class="form-check-label" for="finance_keterangan_{{ loop.index }}">
                                                     {{ keterangan }}
                                                 </label>
@@ -114,8 +116,8 @@
                         <div class="modal-footer">
                             <!-- Close Button -->
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                            <!-- Generate Now Button -->
-                            <button type="submit" class="btn btn-primary" id="generateNowBtn">Generate Now</button>
+                            <!-- Save Filters Button -->
+                            <button type="submit" class="btn btn-primary" id="generateNowBtn">Save Filters and Generate Now</button>    
                         </div>
                     </form>
                 </div>
@@ -170,10 +172,13 @@
             const form = document.querySelector('form');
 
             form.addEventListener('submit', function (e) {
-                spinnerOverlay.style.display = 'flex';  // Show spinner on form submit
-                setTimeout(() => {
-                    spinnerOverlay.style.display = 'none';  // Hide spinner after 10 seconds
-                }, 10000);
+                const action = e.submitter.value;
+                if (action === 'generate_now') {
+                    spinnerOverlay.style.display = 'flex';  // Show spinner on form submit
+                    setTimeout(() => {
+                        spinnerOverlay.style.display = 'none';  // Hide spinner after 10 seconds
+                    }, 10000);
+                }
             });
         });
     </script>

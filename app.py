@@ -5,8 +5,13 @@ import os
 import io
 import re
 import numpy as np
-from operations import save_bank_data, get_all_banks, update_bank_data, get_bank_by_id, delete_bank_data, create_table_if_not_exists, save_invoice_data, get_all_invoices
-from operations import update_invoice_data, get_invoice_by_id, delete_invoice_data
+from operations import (
+    save_bank_data, get_all_banks, update_bank_data, get_bank_by_id, delete_bank_data,
+    create_table_if_not_exists, save_invoice_data, get_all_invoices,
+    update_invoice_data, get_invoice_by_id, delete_invoice_data,
+    create_selected_filters_table, save_selected_filters, get_selected_filters, get_bank_by_code
+)
+
 from time import time
 
 app = Flask(__name__)
@@ -154,9 +159,9 @@ def add_bank():
 
     # Fetch all bank data after insert
     banks = get_all_banks()
-
+    invoices = get_all_invoices()
     # Render the dashboard with the 'add-data-bank' section visible
-    return render_template('dashboard.html', banks=banks, show_section='data-bank')
+    return render_template('dashboard.html', banks=banks, invoices=invoices, show_section='data-bank')
 
 
 @app.route('/edit_bank/<int:bank_id>', methods=['GET', 'POST'])
@@ -238,6 +243,7 @@ month_names_indonesian = [
     "", "Januari", "Februari", "Maret", "April", "Mei", "Juni", 
     "Juli", "Agustus", "September", "Oktober", "November", "Desember"
 ]
+
 
 # Export route to generate Excel file in the same format as pivot report
 @app.route('/export/<filenames>')
@@ -582,12 +588,24 @@ def generate_invoice_to_excel(filenames):
                      as_attachment=True, download_name=download_name)
 
 
+
 @app.route('/report/<filenames>', methods=['GET', 'POST'])
 def generate_report(filenames):
     file_list = filenames.split(',')  # Get the list of filenames from the URL
     reports = []
     all_non_finance_keterangans = set()
     all_finance_keterangans = set()  # Initialize set for financial keterangans
+
+    # Extract bank code from the first filename
+    first_filename = file_list[0]
+    bank_code = first_filename.split('.')[0]
+
+    # Get bank name
+    bank = get_bank_by_code(bank_code)
+    bank_name = bank[2] if bank else 'Unknown'
+
+    # Get previously selected filters
+    finance_selected, non_finance_selected = get_selected_filters(bank_code)
 
     for filename in file_list:
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
@@ -691,41 +709,57 @@ def generate_report(filenames):
         reports=reports,
         unique_non_finance_keterangans=unique_non_finance_keterangans,
         unique_finance_keterangans=unique_finance_keterangans,
-        filenames=filenames
+        filenames=filenames,
+        finance_selected=finance_selected,
+        non_finance_selected=non_finance_selected
     )
 
-# Invoice Combine Route
 @app.route('/invoice/combine/<filenames>', methods=['POST'])
 def invoice_combine(filenames):
     selected_non_finance_keterangans = request.form.getlist('non_finance_keterangans')
     selected_finance_keterangans = request.form.getlist('finance_keterangans')
-    
+
+    # Extract bank_code from filenames
+    file_list = filenames.split(',')
+    first_filename = file_list[0]
+    bank_code = first_filename.split('.')[0].strip()
+
+    # Get bank_name from bank_data table
+    bank = get_bank_by_code(bank_code)
+    if bank:
+        bank_name = bank[2]  # Assuming bank_name is at index 2
+    else:
+        flash(f'Bank code "{bank_code}" not found in the database. Please add the bank data before proceeding.', 'danger')
+        return redirect(url_for('generate_report', filenames=filenames))
+
+    # Save the selected filters to the database
+    save_selected_filters(bank_code, bank_name, selected_finance_keterangans, selected_non_finance_keterangans)
+
     if not selected_non_finance_keterangans and not selected_finance_keterangans:
         flash('Please select at least one keterangan to include.', 'warning')
         return redirect(url_for('generate_report', filenames=filenames))
-    
-    file_list = filenames.split(',')
-    excel_output = io.BytesIO()  # Create an in-memory file
-    # Extract details from the first file for naming purposes
-    first_filename = file_list[0]
-    name_parts = first_filename.split('.')
-    bank_code = name_parts[0]  # Extract bank code
-    year_month = name_parts[2]  # Extract year and month
+
+    # Proceed to generate the invoice based on selected filters
+    excel_output = io.BytesIO()
     # Prepare the month and year for naming
+    name_parts = first_filename.split('.')
+    year_month = name_parts[2]
     year = year_month[:4]
     month = int(year_month[4:])
     month_name = month_names_indonesian[month]
+
     with pd.ExcelWriter(excel_output, engine='xlsxwriter') as writer:
-        
-        row_position = 0  # To track the row position for writing each report sequentially
-        # Create 'Rekap' worksheet
+        # Initialize workbook and formats
         workbook = writer.book
-        worksheet_rekap = workbook.add_worksheet('Rekap')
-        # Create formats
         border_format = workbook.add_format({'border': 1})
         bold_format = workbook.add_format({'bold': True})
         header_format = workbook.add_format({'bold': True, 'border': 1})
         keterangan_format = workbook.add_format({'bold': True, 'border': 1})
+
+        # Generate the 'Rekap' sheet with all data (no filters)
+        worksheet_rekap = workbook.add_worksheet('Rekap')
+        row_position = 0  # To track the row position for writing each report sequentially
+
         for filename in file_list:
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             # Split the filename to extract details
@@ -746,38 +780,40 @@ def invoice_combine(filenames):
             df['datetime'] = df['datetime'].dt.strftime('%d-%m-%Y')  # Format as 'dd-mm-yyyy'
             # Sort the DataFrame by datetime
             df = df.sort_values('datetime')
-            # Pivot the data based on finance type
+
+            # Pivot the data based on finance type (no filters applied)
             if finance_type == 'finance':
                 pivot_df = df.pivot_table(index='keterangan', columns='datetime', values='amount', aggfunc='count', fill_value=0)
+                finance_type_label = 'Finansial'
             else:
                 pivot_df = df.pivot_table(index='keterangan', columns='datetime', values='count', aggfunc='sum', fill_value=0)
-            # Reorder columns to ensure consistent ordering
-            pivot_df = pivot_df.reindex(sorted(pivot_df.columns), axis=1)
+                finance_type_label = 'Non-Finansial'
+
+            # Reorder date columns to ensure consistent ordering
+            date_columns = sorted([col for col in pivot_df.columns if isinstance(col, str)], key=lambda x: datetime.strptime(x, '%d-%m-%Y'))
+            pivot_df = pivot_df[date_columns]
+
             # Add 'Grand Total' and 'Finance Type'
             pivot_df['Grand Total'] = pivot_df.sum(axis=1)
-            pivot_df['Finance Type'] = 'Finansial' if finance_type == 'finance' else 'Non-Finansial'
-            # Move 'Finance Type' to the first column
-            cols = pivot_df.columns.tolist()
-            cols = ['Finance Type'] + [col for col in cols if col not in ['Finance Type', 'Grand Total']] + ['Grand Total']
+            pivot_df['Finance Type'] = finance_type_label
+
+            # Rearrange columns as per your requirement
+            cols = ['keterangan', 'Finance Type', 'Grand Total'] + date_columns
+            pivot_df.reset_index(inplace=True)
             pivot_df = pivot_df[cols]
+
             # Write the bank details
             worksheet_rekap.write(row_position, 0, f"Rekap Transaksi Bulanan", bold_format)
             row_position += 1
             worksheet_rekap.write(row_position, 0, f"Bank: {bank_code} | Channel Type: {channel_type} | Bulan: {month_name}, {year}", bold_format)
             row_position += 1
-            # Set index name if not set
-            if pivot_df.index.name is None:
-                pivot_df.index.name = 'keterangan'
-            # Prepare the headers
-            # Prepare the headers in the new order
-            col_labels = ['keterangan', 'Finance Type', 'Grand Total'] + [col for col in pivot_df.columns if col not in ['Finance Type', 'Grand Total']]
 
-            for col_num, value in enumerate(col_labels):
+            # Write headers
+            for col_num, value in enumerate(cols):
                 worksheet_rekap.write(row_position, col_num, value, header_format)
-            # Write the data rows
-            for df_row_num, (idx, row) in enumerate(pivot_df.reset_index().iterrows()):
-                row_values = row.tolist()  # Use row.tolist() directly to include 'keterangan'
-                for col_num, cell_value in enumerate(row_values):
+            # Write data rows
+            for df_row_num, row in pivot_df.iterrows():
+                for col_num, cell_value in enumerate(row):
                     # Ensure cell_value is of acceptable type
                     if pd.isnull(cell_value):
                         cell_value = ''
@@ -794,10 +830,11 @@ def invoice_combine(filenames):
                         cell_format = border_format
                     worksheet_rekap.write(row_position + df_row_num + 1, col_num, cell_value, cell_format)
             # Adjust column widths
-            worksheet_rekap.set_column(0, len(col_labels) - 1, 15)
+            worksheet_rekap.set_column(0, len(cols) - 1, 15)
             # Update row_position
             row_position += len(pivot_df) + 2 + 2  # Data rows + headers + extra space
-        ### Write the 'Invoice' sheet (from generate_invoice_to_excel)
+
+        # **Generate 'Invoice' sheet with filtered data**
         # Dictionary to store data grouped by (bank_code, channel_type)
         grouped_files = {}
         # Group the files by bank code and channel type
@@ -821,7 +858,7 @@ def invoice_combine(filenames):
         bold_font_blue = workbook.add_format({'bold': True, 'font_size': 14})
         border_format_comma = workbook.add_format({'num_format': '#,##0', 'border': 1})
         border_format = workbook.add_format({'border': 1})
-        bold_border_format = workbook.add_format({'border': 1, 'bold':True})
+        bold_border_format = workbook.add_format({'border': 1, 'bold': True})
         bold_border_format_blue = workbook.add_format({'bold': True, 'border': 1, 'bg_color': '#87CEEB', 'num_format': '#,##0'})
         red_border_format = workbook.add_format({'bold': True, 'font_color': 'white', 'bg_color': 'red', 'border': 1, 'num_format': '#,##0'})
         idr_format = workbook.add_format({'num_format': '"Rp"#,##0', 'border': 1})
@@ -831,8 +868,6 @@ def invoice_combine(filenames):
         for (bank_code, channel_type), files in grouped_files.items():
             # Dictionary to store aggregated data for this group
             invoice_data = {}
-            allowed_non_finance_keterangans = selected_non_finance_keterangans
-            allowed_finance_keterangans = selected_finance_keterangans
             for filepath, finance_type in files:
                 # Read the CSV file
                 df = pd.read_csv(filepath)
@@ -840,17 +875,20 @@ def invoice_combine(filenames):
                 df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce')
                 df = df.dropna(subset=['datetime'])
                 df['datetime'] = df['datetime'].dt.strftime('%d-%m-%Y')  # Format as 'dd-mm-yyyy'
+                # Filter the data based on selected keterangans
+                if finance_type == 'finance':
+                    df = df[df['keterangan'].isin(selected_finance_keterangans)]
+                else:
+                    df = df[df['keterangan'].isin(selected_non_finance_keterangans)]
                 # Aggregate data for the invoice table
                 if finance_type == 'finance':
                     df_agg = df.groupby('keterangan')['amount'].count().reset_index()
-                    df_agg = df_agg[df_agg['keterangan'].isin(allowed_finance_keterangans)]
                     for _, row in df_agg.iterrows():
                         if row['keterangan'] not in invoice_data:
                             invoice_data[row['keterangan']] = {'Non-Finansial': 0, 'Finansial': 0}
                         invoice_data[row['keterangan']]['Finansial'] += row['amount']
                 else:
                     df_agg = df.groupby('keterangan')['count'].sum().reset_index()
-                    df_agg = df_agg[df_agg['keterangan'].isin(allowed_non_finance_keterangans)]
                     for _, row in df_agg.iterrows():
                         if row['keterangan'] not in invoice_data:
                             invoice_data[row['keterangan']] = {'Non-Finansial': 0, 'Finansial': 0}
@@ -938,8 +976,7 @@ def invoice_combine(filenames):
         worksheet.write(row_position + 5, col_position + 4, calc_5 * 600, idr_format)
         # Non-Finansial
         worksheet.write(row_position + 6, col_position, "Non Fin", bold_border_format)
-        worksheet.write(row_position, col_position + 1, grand_total_non_finance, border_format_comma)
-        worksheet.write(row_position + 6, col_position + 1, "", border_format)
+        worksheet.write(row_position + 6, col_position + 1, grand_total_non_finance, border_format_comma)
         worksheet.write(row_position + 6, col_position + 2, "", border_format)
         worksheet.write(row_position + 6, col_position + 3, "", border_format)
         worksheet.write(row_position + 6, col_position + 4, "", border_format)
@@ -967,7 +1004,6 @@ def invoice_combine(filenames):
         worksheet.write(row_position + 10, col_position + 1, "", bold_border_format_blue)
         worksheet.write(row_position + 10, col_position + 2, "", bold_border_format_blue)
         worksheet.write(row_position + 10, col_position + 3, "", bold_border_format_blue)
-        worksheet.write(row_position + 10, col_position + 4, "", bold_border_format_blue)
         worksheet.write(row_position + 10, col_position + 4, total_tagihan, bold_border_format_blue)
         # Total Tagihan with red and border
         total_final = total_tagihan - 25000000
@@ -975,8 +1011,8 @@ def invoice_combine(filenames):
         worksheet.write(row_position + 11, col_position + 1, "", red_border_format)
         worksheet.write(row_position + 11, col_position + 2, "", red_border_format)
         worksheet.write(row_position + 11, col_position + 3, "", red_border_format)
-        worksheet.write(row_position + 11, col_position + 4, "", red_border_format)
         worksheet.write(row_position + 11, col_position + 4, total_final, red_border_format)
+
     # Reset file pointer to the start of the stream
     excel_output.seek(0)
     # Create the dynamic download filename
