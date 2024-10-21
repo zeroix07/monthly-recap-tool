@@ -84,6 +84,7 @@ def create_table_if_not_exists():
     create_bank_data_table()
     create_invoice_data_table()
     create_selected_filters_table()
+    create_data_biller_table()
 
 def create_bank_data_table():
     conn = sqlite3.connect('database/recap_invoice.db')
@@ -267,3 +268,69 @@ def get_selected_filters(bank_code):
     else:
         return [], []
 
+def create_data_biller_table():
+    """
+    Creates the data_biller table if it does not exist.
+    """
+    conn = sqlite3.connect('database/recap_invoice.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS data_biller (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            year_month TEXT NOT NULL,
+            bank_code TEXT NOT NULL,
+            finance_type TEXT NOT NULL,
+            tiering_name TEXT NOT NULL,
+            grand_total_finance INTEGER NOT NULL,
+            charge INTEGER NOT NULL,
+            grand_total_non_finance INTEGER NOT NULL,
+            total_tagihan INTEGER NOT NULL,
+            total_final INTEGER NOT NULL
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+def save_data_biller(year_month, bank_code, finance_type, tiering_name, grand_total_finance, charge, grand_total_non_finance, total_tagihan, total_final):
+    """
+    Inserts a new record into the data_biller table.
+    """
+    conn = sqlite3.connect('database/recap_invoice.db')
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO data_biller (
+            year_month,
+            bank_code,
+            finance_type,
+            tiering_name,
+            grand_total_finance,
+            charge,
+            grand_total_non_finance,
+            total_tagihan,
+            total_final
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (
+        year_month,
+        bank_code,
+        finance_type,
+        tiering_name,
+        grand_total_finance,
+        charge,
+        grand_total_non_finance,
+        total_tagihan,
+        total_final
+    ))
+    conn.commit()
+    conn.close()
+
+
+def get_all_data_biller():
+    """
+    Retrieves all records from the data_biller table.
+    """
+    conn = sqlite3.connect('database/recap_invoice.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM data_biller")
+    data_biller = cursor.fetchall()
+    conn.close()
+    return data_biller if data_biller else []
