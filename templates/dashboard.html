@@ -21,7 +21,9 @@
         <a href="#data-bank">Data Bank</a>
         <a href="#generate-report">Generate Report and Invoice</a>
         <a href="#invoice">Invoice</a>
+        <!-- <a href="/open_database" target="_blank">Open Database</a> -->
     </div>
+    
 
     <!-- Main content area -->
     <div class="content">
@@ -51,22 +53,24 @@
                     </select>
                 </div>
                 <button type="submit" class="btn btn-primary">Save</button>
-            </form>
-            <br>
-            <!-- Flash Messages -->
-            {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-            <div class="alert-container">
-                {% for category, message in messages %}
-                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                <br>
+                <!-- Flash Messages -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                <div class="alert-container">
+                    {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% endfor %}
                 </div>
-                {% endfor %}
-            </div>
-            {% endif %}
-            {% endwith %}
+                {% endif %}
+                {% endwith %}
 
+            </form>
+            
+            
             <!-- Check if banks exist -->
             {% if banks %}
             <h3>Data Bank</h3>
@@ -104,7 +108,7 @@
         <!-- Generate Report and Invoice Section -->
         <div id="generate-report" class="section" style="display: none;">
             <h2>Generate Report and Invoice</h2>
-            <form id="report-form" method="POST" action="/upload" enctype="multipart/form-data" onsubmit="return validateForm()">
+            <form id="report-form" method="POST" action="/upload" enctype="multipart/form-data" onsubmit="return showSpinner()">
                 <div class="mb-3">
                     <label for="reportVersion" class="form-label">Report Version</label>
                     <select class="form-select" id="reportVersion" name="reportVersion" required>
@@ -112,6 +116,10 @@
                         <option value="V1">V1</option>
                         <option value="V2">V2</option>
                     </select>
+                </div>
+                <!-- Loading Spinner Overlay -->
+                <div id="spinner-overlay" class="spinner-overlay">
+                    <div class="spinner"></div>
                 </div>
 
                 <!-- Drag-and-Drop Zone for File Upload -->
@@ -153,40 +161,39 @@
                 </div>
                 <div class="mb-3">
                     <label for="trxMinimum" class="form-label">Minimum Transaksi</label>
-                    <input type="number" class="form-control" id="trxMinimum" name="trx_minimum" required>
+                    <input type="number" class="form-control" id="trxMinimum" name="trx_minimum" min="0" required>
                 </div>
                 <div class="mb-3">
                     <label for="trxFinance" class="form-label">Jumlah Transaksi Finansial</label>
-                    <input type="number" class="form-control" id="trxFinance" name="trx_finance" required>
+                    <input type="number" class="form-control" id="trxFinance" name="trx_finance" min="0" required>
                 </div>
                 <div class="mb-3">
                     <label for="financePrice" class="form-label">Harga Finansial</label>
-                    <input type="number" class="form-control" id="financePrice" name="finance_price" required>
+                    <input type="number" class="form-control" id="financePrice" name="finance_price" min="0" required>
                 </div>
                 <div class="mb-3">
                     <label for="trxNonfinance" class="form-label">Jumlah Transaksi Non-Finansial</label>
-                    <input type="number" class="form-control" id="trxNonfinance" name="trx_nonfinance" required>
+                    <input type="number" class="form-control" id="trxNonfinance" name="trx_nonfinance" min="0" required>
                 </div>
                 <div class="mb-3">
                     <label for="nonfinancePrice" class="form-label">Harga Non-Finansial</label>
-                    <input type="number" class="form-control" id="nonfinancePrice" name="nonfinance_price" required>
+                    <input type="number" class="form-control" id="nonfinancePrice" name="nonfinance_price" min="0" r0equired>
                 </div>
                 <button type="submit" class="btn btn-primary">Save</button>
-            </form>
-            <br>
-            <!-- Flash Messages -->
-            {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-            <div class="alert-container">
-                {% for category, message in messages %}
-                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                <!-- Flash Messages -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                <div class="alert-container">
+                    {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                    {% endfor %}
                 </div>
-                {% endfor %}
-            </div>
-            {% endif %}
-            {% endwith %}
+                {% endif %}
+                {% endwith %}
+            </form>
 
             <!-- Display the saved invoices -->
             {% if invoices %}
@@ -245,11 +252,17 @@
     
         document.querySelectorAll('.sidebar a').forEach(link => {
             link.addEventListener('click', function (e) {
-                e.preventDefault();
-                document.querySelectorAll('.section').forEach(div => div.style.display = 'none');
-                document.querySelector(link.getAttribute('href')).style.display = 'block';
+                const href = link.getAttribute('href');
+
+                // Skip the event handler for external links (e.g., /open_database)
+                if (href.startsWith('#')) {
+                    e.preventDefault();
+                    document.querySelectorAll('.section').forEach(div => div.style.display = 'none');
+                    document.querySelector(href).style.display = 'block';
+                }
             });
         });
+
     
         // Show the section passed from Flask if available
         if (showSection) {
@@ -263,6 +276,21 @@
             const bankCodes = {{ banks | tojson }};
             // If needed, update other related fields here based on the bank selection
         });
+        function showSpinner() {
+            const versionSelect = document.getElementById('reportVersion');
+            const selectedVersion = versionSelect.value;
+            
+            if (selectedVersion === "select-the-option") {
+                alert("Please select a valid version before submitting.");
+                return false; // Prevent form submission and spinner from showing
+            }
+
+            const spinnerOverlay = document.getElementById('spinner-overlay');
+            spinnerOverlay.style.display = 'flex';  // Show the loading spinner
+            return true;  // Allow form submission to proceed
+        }
+
+
     </script>
     
 </body>

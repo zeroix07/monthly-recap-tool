@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, send_file, redirect
 import subprocess
-import psutil
+import sqlite3
 import pandas as pd
 from datetime import datetime
 import os
@@ -11,8 +11,10 @@ from operations import (
     save_bank_data, get_all_banks, update_bank_data, get_bank_by_id, delete_bank_data,
     create_table_if_not_exists, save_invoice_data, get_all_invoices,
     update_invoice_data, get_invoice_by_id, delete_invoice_data,
-    get_invoice_data_by_bank_code, save_selected_filters, get_selected_filters, get_bank_by_code
+    get_invoice_data_by_bank_code, save_selected_filters, get_selected_filters,
+    get_bank_by_code, save_data_biller  # Add this
 )
+
 
 from time import time
 
@@ -223,8 +225,6 @@ def delete_bank(bank_id):
 
 @app.route('/', methods=['GET'])
 def dashboard():
-    create_table_if_not_exists()
-
     banks = get_all_banks()
     invoices = get_all_invoices()
 
@@ -738,6 +738,8 @@ def generate_report(filenames):
         non_finance_selected=non_finance_selected
     )
 
+# app.py
+
 @app.route('/invoice/combine/<filenames>', methods=['POST'])
 def invoice_combine(filenames):
     selected_non_finance_keterangans = request.form.getlist('non_finance_keterangans')
@@ -799,17 +801,20 @@ def invoice_combine(filenames):
     excel_output = io.BytesIO()
     # Prepare the month and year for naming
     name_parts = first_filename.split('.')
-    year_month = name_parts[2]
-    year = year_month[:4]
-    month = int(year_month[4:])
+    year_month_raw = name_parts[2]
+    year = year_month_raw[:4]
+    month = int(year_month_raw[4:])
     month_name = month_names_indonesian[month]
+
+    # Format year_month as mm-yyyy
+    year_month = f"{month:02d}-{year}"
 
     with pd.ExcelWriter(excel_output, engine='xlsxwriter') as writer:
         # Initialize workbook and formats
         workbook = writer.book
         border_format = workbook.add_format({'border': 1})
         bold_format = workbook.add_format({'bold': True})
-        bold_border_format = workbook.add_format({'bold': True, 'border':1})
+        bold_border_format = workbook.add_format({'bold': True, 'border': 1})
         bold_font_blue = workbook.add_format({'bold': True, 'font_size': 14})
         border_format_comma = workbook.add_format({'num_format': '#,##0', 'border': 1})
         idr_format = workbook.add_format({'num_format': '"Rp"#,##0', 'border': 1})
@@ -831,11 +836,11 @@ def invoice_combine(filenames):
             name_parts = filename.split('.')
             bank_code = name_parts[0]
             channel_type = name_parts[1]
-            year_month = name_parts[2]
+            year_month_file = name_parts[2]
             finance_type = name_parts[3].replace('.csv', '')
             # Extract year and month details
-            year = year_month[:4]
-            month = int(year_month[4:])
+            year = year_month_file[:4]
+            month = int(year_month_file[4:])
             month_name = month_names_indonesian[month]
             # Read the CSV file
             df = pd.read_csv(filepath)
@@ -888,21 +893,21 @@ def invoice_combine(filenames):
 
             # Write headers
             for col_num, value in enumerate(cols):
-                worksheet_rekap.write(row_position, col_num, value, border_format)
+                worksheet_rekap.write(row_position, col_num, value, bold_border_format)
             # Write data rows
             for df_row_num, row in pivot_df.iterrows():
                 for col_num, cell_value in enumerate(row):
                     # Ensure cell_value is of acceptable type
                     if pd.isnull(cell_value):
                         cell_value = ''
-                    elif isinstance(cell_value, (np.integer, np.int64, int)):
+                    elif isinstance(cell_value, (int, np.integer)):
                         cell_value = int(cell_value)
-                    elif isinstance(cell_value, (np.floating, np.float64, float)):
+                    elif isinstance(cell_value, (float, np.floating)):
                         cell_value = float(cell_value)
                     else:
                         cell_value = str(cell_value)
                     worksheet_rekap.write(
-                        row_position + df_row_num + 1, col_num, cell_value, border_format
+                        row_position + df_row_num + 1, col_num, cell_value, border_format_comma
                     )
             # Adjust column widths
             worksheet_rekap.set_column(0, len(cols) - 1, 15)
@@ -1029,6 +1034,19 @@ def invoice_combine(filenames):
             total_tagihan += charge
             calculation_row += 1
 
+            # Insert into data_biller
+            save_data_biller(
+                year_month=year_month,
+                bank_code=bank_code,
+                finance_type='Finansial',
+                tiering_name=tiering_name,
+                grand_total_finance=grand_total_finance,
+                charge=charge,
+                grand_total_non_finance=grand_total_non_finance,
+                total_tagihan=total_tagihan,
+                total_final=0  # To be updated after all calculations
+            )
+
         # Handle excess transactions if any (optional)
         # If grand_total_finance > sum of trx_finance, handle accordingly
         sum_trx_finance = sum([tier['trx_finance'] for tier in invoice_data])
@@ -1047,14 +1065,27 @@ def invoice_combine(filenames):
             total_tagihan += charge
             calculation_row += 1
 
+            # Insert into data_biller
+            save_data_biller(
+                year_month=year_month,
+                bank_code=bank_code,
+                finance_type='Finansial',
+                tiering_name='Excess Transactions',
+                grand_total_finance=grand_total_finance,
+                charge=charge,
+                grand_total_non_finance=grand_total_non_finance,
+                total_tagihan=total_tagihan,
+                total_final=0  # To be updated after all calculations
+            )
+
         # Non-Finansial
         nonfinance_price = int(invoice_data[0]['nonfinance_price'])  # Assuming same price across tiers
 
         worksheet.write(calculation_row, col_position, "Non Fin", bold_border_format)
         worksheet.write(calculation_row, col_position + 1, grand_total_non_finance, border_format_comma)
-        worksheet.write(calculation_row, col_position + 2, "", border_format_comma)
-        worksheet.write(calculation_row, col_position + 3, "", border_format_comma)
-        worksheet.write(calculation_row, col_position + 4, "", border_format_comma)
+        worksheet.write(calculation_row, col_position + 2, "", border_format)
+        worksheet.write(calculation_row, col_position + 3, "", border_format)
+        worksheet.write(calculation_row, col_position + 4, "", border_format)
         calculation_row += 1
 
         worksheet.write(calculation_row, col_position, "", border_format)
@@ -1065,7 +1096,20 @@ def invoice_combine(filenames):
 
         # Update total charges
         total_tagihan += grand_total_non_finance * nonfinance_price
-        calculation_row += 1
+        calculation_row += 2
+
+        # Insert into data_biller for Non-Finansial
+        save_data_biller(
+            year_month=year_month,
+            bank_code=bank_code,
+            finance_type='Non-Finansial',
+            tiering_name='Non-Finansial',
+            grand_total_finance=grand_total_finance,
+            charge=grand_total_non_finance * nonfinance_price,
+            grand_total_non_finance=grand_total_non_finance,
+            total_tagihan=total_tagihan,
+            total_final=0  # To be updated after all calculations
+        )
 
         # Total Charges
         worksheet.write(calculation_row, col_position, "TOTAL", bold_border_format_blue)
@@ -1082,17 +1126,29 @@ def invoice_combine(filenames):
         else:
             total_final = total_tagihan
 
-        # Final Total
+        # Write final total
         worksheet.write(calculation_row, col_position, "Total Tagihan", red_border_format)
         worksheet.write(calculation_row, col_position + 1, "", red_border_format)
         worksheet.write(calculation_row, col_position + 2, "", red_border_format)
         worksheet.write(calculation_row, col_position + 3, "", red_border_format)
         worksheet.write(calculation_row, col_position + 4, total_final, red_border_format)
 
+        # Update data_biller with total_final
+        # Fetch all relevant records for this bank_code and year_month
+        conn = sqlite3.connect('database/recap_invoice.db')
+        cursor = conn.cursor()
+        cursor.execute('''
+            UPDATE data_biller
+            SET total_final = ?
+            WHERE year_month = ? AND bank_code = ?
+        ''', (total_final, year_month, bank_code))
+        conn.commit()
+        conn.close()
+
     # Reset file pointer to the start of the stream
     excel_output.seek(0)
     # Create the dynamic download filename
-    download_name = f"Rekap Kelebihan Transaksi.{bank_code}.{year_month}.xlsx"
+    download_name = f"Rekap Kelebihan Transaksi.{bank_code}.{year_month_raw}.xlsx"
     # Send the file to the user
     return send_file(
         excel_output,
@@ -1103,6 +1159,8 @@ def invoice_combine(filenames):
 
 
 
+
 if __name__ == '__main__':
     get_all_invoices()
+    create_table_if_not_exists()
     app.run(debug=True)
