@@ -1,4 +1,6 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, send_file
+from flask import Flask, render_template, request, redirect, url_for, flash, send_file, redirect
+import subprocess
+import psutil
 import pandas as pd
 from datetime import datetime
 import os
@@ -31,6 +33,28 @@ UPLOAD_FOLDER = 'uploads/'
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+
+sqlite_web_process = None
+
+@app.route('/open_database', methods=['GET'])
+def open_database():
+    global sqlite_web_process
+
+    # Check if sqlite-web is already running
+    if sqlite_web_process is None or sqlite_web_process.poll() is not None:
+        try:
+            # Start sqlite-web in the background
+            sqlite_web_process = subprocess.Popen(['sqlite_web', 'database/recap_invoice.db'], 
+                                                  stdout=subprocess.PIPE, 
+                                                  stderr=subprocess.PIPE)
+            flash('SQLite Web started successfully!', 'success')
+        except Exception as e:
+            flash(f'Failed to start SQLite Web: {e}', 'danger')
+            return redirect(url_for('dashboard'))
+
+    # Redirect the user to the sqlite-web interface
+    return redirect('http://127.0.0.1:8080')
 
 
 @app.route('/data_invoice', methods=['GET', 'POST'])
@@ -729,11 +753,16 @@ def invoice_combine(filenames):
     if bank:
         bank_name = bank[2]  # Assuming bank_name is at index 2
     else:
-        flash(f'Bank code "{bank_code}" not found in the database. Please add the bank data before proceeding.', 'danger')
+        flash(
+            f'Bank code "{bank_code}" not found in the database. Please add the bank data before proceeding.',
+            'danger'
+        )
         return redirect(url_for('generate_report', filenames=filenames))
 
     # Save the selected filters to the database
-    save_selected_filters(bank_code, bank_name, selected_finance_keterangans, selected_non_finance_keterangans)
+    save_selected_filters(
+        bank_code, bank_name, selected_finance_keterangans, selected_non_finance_keterangans
+    )
 
     if not selected_non_finance_keterangans and not selected_finance_keterangans:
         flash('Please select at least one keterangan to include.', 'warning')
@@ -742,19 +771,21 @@ def invoice_combine(filenames):
     # Fetch invoice data for the bank_code
     invoice_data_list = get_invoice_data_by_bank_code(bank_code)
     if not invoice_data_list:
-        flash(f'No invoice data found for bank code "{bank_code}". Please add the invoice data before proceeding.', 'danger')
+        flash(
+            f'No invoice data found for bank code "{bank_code}". Please add the invoice data before proceeding.',
+            'danger'
+        )
         return redirect(url_for('generate_report', filenames=filenames))
 
-    # Process the invoice data into a more usable form
-    # Create a list of tiers sorted by their order
+    # Process the invoice data into a list of dictionaries
     invoice_data = []
     for row in invoice_data_list:
         tiering_name = row[0]
-        trx_minimum = row[1]
-        trx_finance = row[2]
-        finance_price = row[3]
-        trx_nonfinance = row[4]
-        nonfinance_price = row[5]
+        trx_minimum = int(row[1])
+        trx_finance = int(row[2])
+        finance_price = int(row[3])
+        trx_nonfinance = int(row[4])
+        nonfinance_price = int(row[5])
         invoice_data.append({
             'tiering_name': tiering_name,
             'trx_minimum': trx_minimum,
@@ -778,8 +809,17 @@ def invoice_combine(filenames):
         workbook = writer.book
         border_format = workbook.add_format({'border': 1})
         bold_format = workbook.add_format({'bold': True})
-        header_format = workbook.add_format({'bold': True, 'border': 1})
-        keterangan_format = workbook.add_format({'bold': True, 'border': 1})
+        bold_border_format = workbook.add_format({'bold': True, 'border':1})
+        bold_font_blue = workbook.add_format({'bold': True, 'font_size': 14})
+        border_format_comma = workbook.add_format({'num_format': '#,##0', 'border': 1})
+        idr_format = workbook.add_format({'num_format': '"Rp"#,##0', 'border': 1})
+        bold_border_format_blue = workbook.add_format({
+            'bold': True, 'border': 1, 'bg_color': '#87CEEB', 'num_format': '#,##0'
+        })
+        red_border_format = workbook.add_format({
+            'bold': True, 'font_color': 'white', 'bg_color': 'red', 'border': 1,
+            'num_format': '#,##0'
+        })
 
         # Generate the 'Rekap' sheet with all data (no filters)
         worksheet_rekap = workbook.add_worksheet('Rekap')
@@ -808,14 +848,23 @@ def invoice_combine(filenames):
 
             # Pivot the data based on finance type (no filters applied)
             if finance_type == 'finance':
-                pivot_df = df.pivot_table(index='keterangan', columns='datetime', values='amount', aggfunc='count', fill_value=0)
+                pivot_df = df.pivot_table(
+                    index='keterangan', columns='datetime', values='amount',
+                    aggfunc='count', fill_value=0
+                )
                 finance_type_label = 'Finansial'
             else:
-                pivot_df = df.pivot_table(index='keterangan', columns='datetime', values='count', aggfunc='sum', fill_value=0)
+                pivot_df = df.pivot_table(
+                    index='keterangan', columns='datetime', values='count',
+                    aggfunc='sum', fill_value=0
+                )
                 finance_type_label = 'Non-Finansial'
 
             # Reorder date columns to ensure consistent ordering
-            date_columns = sorted([col for col in pivot_df.columns if isinstance(col, str)], key=lambda x: datetime.strptime(x, '%d-%m-%Y'))
+            date_columns = sorted(
+                [col for col in pivot_df.columns if isinstance(col, str)],
+                key=lambda x: datetime.strptime(x, '%d-%m-%Y')
+            )
             pivot_df = pivot_df[date_columns]
 
             # Add 'Grand Total' and 'Finance Type'
@@ -830,12 +879,16 @@ def invoice_combine(filenames):
             # Write the bank details
             worksheet_rekap.write(row_position, 0, f"Rekap Transaksi Bulanan", bold_format)
             row_position += 1
-            worksheet_rekap.write(row_position, 0, f"Bank: {bank_code} | Channel Type: {channel_type} | Bulan: {month_name}, {year}", bold_format)
+            worksheet_rekap.write(
+                row_position, 0,
+                f"Bank: {bank_code} | Channel Type: {channel_type} | Bulan: {month_name}, {year}",
+                bold_format
+            )
             row_position += 1
 
             # Write headers
             for col_num, value in enumerate(cols):
-                worksheet_rekap.write(row_position, col_num, value, header_format)
+                worksheet_rekap.write(row_position, col_num, value, border_format)
             # Write data rows
             for df_row_num, row in pivot_df.iterrows():
                 for col_num, cell_value in enumerate(row):
@@ -848,18 +901,22 @@ def invoice_combine(filenames):
                         cell_value = float(cell_value)
                     else:
                         cell_value = str(cell_value)
-                    # Apply bold formatting to 'keterangan' column values
-                    if col_num == 0:
-                        cell_format = keterangan_format
-                    else:
-                        cell_format = border_format
-                    worksheet_rekap.write(row_position + df_row_num + 1, col_num, cell_value, cell_format)
+                    worksheet_rekap.write(
+                        row_position + df_row_num + 1, col_num, cell_value, border_format
+                    )
             # Adjust column widths
             worksheet_rekap.set_column(0, len(cols) - 1, 15)
             # Update row_position
-            row_position += len(pivot_df) + 2 + 2  # Data rows + headers + extra space
+            row_position += len(pivot_df) + 2  # Data rows + headers + extra space
 
         # Generate 'Invoice' sheet with filtered data
+        worksheet = workbook.add_worksheet('Invoice')
+        row_position = 0
+
+        # Initialize total variables
+        grand_total_finance = 0
+        grand_total_non_finance = 0
+
         # Dictionary to store data grouped by (bank_code, channel_type)
         grouped_files = {}
         # Group the files by bank code and channel type
@@ -874,22 +931,7 @@ def invoice_combine(filenames):
             if key not in grouped_files:
                 grouped_files[key] = []
             grouped_files[key].append((filepath, finance_type))
-        # Create 'Invoice' worksheet
-        worksheet = workbook.add_worksheet('Invoice')
-        # Initialize row position to write data
-        row_position = 0
-        # Create formats
-        bold_format = workbook.add_format({'bold': True})
-        bold_font_blue = workbook.add_format({'bold': True, 'font_size': 14})
-        border_format_comma = workbook.add_format({'num_format': '#,##0', 'border': 1})
-        border_format = workbook.add_format({'border': 1})
-        bold_border_format = workbook.add_format({'border': 1, 'bold': True})
-        bold_border_format_blue = workbook.add_format({'bold': True, 'border': 1, 'bg_color': '#87CEEB', 'num_format': '#,##0'})
-        red_border_format = workbook.add_format({'bold': True, 'font_color': 'white', 'bg_color': 'red', 'border': 1, 'num_format': '#,##0'})
-        idr_format = workbook.add_format({'num_format': '"Rp"#,##0', 'border': 1})
-        grand_total_finance = 0
-        grand_total_non_finance = 0
-        # Iterate through the groups and generate the invoices
+
         for (bank_code, channel_type), files in grouped_files.items():
             # Dictionary to store aggregated data for this group
             invoice_data_values = {}
@@ -937,91 +979,127 @@ def invoice_combine(filenames):
                 row_position += 1
             # Write the Grand Total row
             worksheet.write(row_position, 0, 'Grand Total', bold_border_format_blue)
-            worksheet.write(row_position, 1, sum([data['Non-Finansial'] for data in invoice_data_values.values()]), border_format_comma)
-            worksheet.write(row_position, 2, sum([data['Finansial'] for data in invoice_data_values.values()]), border_format_comma)
+            worksheet.write(row_position, 1, sum([data['Non-Finansial'] for data in invoice_data_values.values()]),
+                            border_format_comma)
+            worksheet.write(row_position, 2, sum([data['Finansial'] for data in invoice_data_values.values()]),
+                            border_format_comma)
             # Add some space before the next invoice
             row_position += 3  # Leave space for the next group of data
 
         # After the invoice table, calculate and display the calculation invoice
         col_position = 5  # Place cells to the right of the first invoice
         # Write calculation header
-        trx_minimum = invoice_data[0]['trx_minimum']  # Assuming trx_minimum is the same across tiers
+        trx_minimum = int(invoice_data[0]['trx_minimum'])  # Assuming trx_minimum is the same across tiers
         worksheet.write(0, col_position, f"Biaya Minimum: Rp. {trx_minimum:,}", bold_format)
-        row_position = 2
-        worksheet.write(row_position, col_position, "Transaksi:", bold_border_format_blue)
-        worksheet.write(row_position, col_position + 1, f"{month_name} {year}", bold_border_format_blue)
-        worksheet.write(row_position, col_position + 2, "Jumlah Trx", bold_border_format_blue)
-        worksheet.write(row_position, col_position + 3, "Harga", bold_border_format_blue)
-        worksheet.write(row_position, col_position + 4, "Tagihan", bold_border_format_blue)
-        row_position += 1
+        calculation_row = 2
+
+        worksheet.write(calculation_row, col_position, "Transaksi:", bold_border_format_blue)
+        worksheet.write(calculation_row, col_position + 1, f"{month_name} {year}", bold_border_format_blue)
+        worksheet.write(calculation_row, col_position + 2, "Jumlah Trx", bold_border_format_blue)
+        worksheet.write(calculation_row, col_position + 3, "Harga", bold_border_format_blue)
+        worksheet.write(calculation_row, col_position + 4, "Tagihan", bold_border_format_blue)
+        calculation_row += 1
+
         # Finansial
-        worksheet.write(row_position, col_position, "Fin", bold_border_format)
-        worksheet.write(row_position, col_position + 1, grand_total_finance, border_format_comma)
-        worksheet.write(row_position, col_position + 2, "", border_format)
-        worksheet.write(row_position, col_position + 3, "", border_format)
-        worksheet.write(row_position, col_position + 4, "", border_format)
-        remaining_finance = grand_total_finance
+        worksheet.write(calculation_row, col_position, "Fin", bold_border_format)
+        worksheet.write(calculation_row, col_position + 1, grand_total_finance, border_format_comma)
+        worksheet.write(calculation_row, col_position + 2, "", border_format)
+        worksheet.write(calculation_row, col_position + 3, "", border_format)
+        worksheet.write(calculation_row, col_position + 4, "", border_format)
+        calculation_row += 1
 
+        # Process each tier directly without calculating remaining_finance
         total_tagihan = 0
-
-        # Process each tier
-        for idx, tier in enumerate(invoice_data):
+        for tier in invoice_data:
+            tiering_name = tier['tiering_name']
             trx_finance = tier['trx_finance']
             finance_price = tier['finance_price']
-            tiering_name = tier['tiering_name']
-            calc = min(trx_finance, remaining_finance)
-            worksheet.write(row_position + idx + 1, col_position, "", border_format)
-            worksheet.write(row_position + idx + 1, col_position + 1, tiering_name, border_format)
-            worksheet.write(row_position + idx + 1, col_position + 2, calc, border_format_comma)
-            worksheet.write(row_position + idx + 1, col_position + 3, finance_price, idr_format)
-            worksheet.write(row_position + idx + 1, col_position + 4, calc * finance_price, idr_format)
-            total_tagihan += calc * finance_price
-            remaining_finance -= calc
-            if remaining_finance <= 0:
-                break  # No more transactions to process
+
+            # Calculate charge based on trx_finance directly
+            charge = trx_finance * finance_price
+
+            # Write tier data
+            worksheet.write(calculation_row, col_position, "", border_format)
+            worksheet.write(calculation_row, col_position + 1, tiering_name, border_format)
+            worksheet.write(calculation_row, col_position + 2, trx_finance, border_format_comma)
+            worksheet.write(calculation_row, col_position + 3, finance_price, idr_format)
+            worksheet.write(calculation_row, col_position + 4, charge, idr_format)
+
+            # Update total charges
+            total_tagihan += charge
+            calculation_row += 1
+
+        # Handle excess transactions if any (optional)
+        # If grand_total_finance > sum of trx_finance, handle accordingly
+        sum_trx_finance = sum([tier['trx_finance'] for tier in invoice_data])
+        excess_finance = grand_total_finance - sum_trx_finance
+        if excess_finance > 0:
+            last_price = int(invoice_data[-1]['finance_price'])  # Use last tier price
+            charge = excess_finance * last_price
+
+            worksheet.write(calculation_row, col_position, "", border_format)
+            worksheet.write(calculation_row, col_position + 1, "Excess Transactions", border_format)
+            worksheet.write(calculation_row, col_position + 2, excess_finance, border_format_comma)
+            worksheet.write(calculation_row, col_position + 3, last_price, idr_format)
+            worksheet.write(calculation_row, col_position + 4, charge, idr_format)
+
+            # Update total charges
+            total_tagihan += charge
+            calculation_row += 1
 
         # Non-Finansial
-        row_position += idx + 2
-        worksheet.write(row_position, col_position, "Non Fin", bold_border_format)
-        worksheet.write(row_position, col_position + 1, grand_total_non_finance, border_format_comma)
-        worksheet.write(row_position, col_position + 2, "", border_format)
-        worksheet.write(row_position, col_position + 3, "", border_format)
-        worksheet.write(row_position, col_position + 4, "", border_format)
+        nonfinance_price = int(invoice_data[0]['nonfinance_price'])  # Assuming same price across tiers
 
-        # Assume Non-Finansial pricing is from the last tier
-        nonfinance_price = invoice_data[-1]['nonfinance_price']
+        worksheet.write(calculation_row, col_position, "Non Fin", bold_border_format)
+        worksheet.write(calculation_row, col_position + 1, grand_total_non_finance, border_format_comma)
+        worksheet.write(calculation_row, col_position + 2, "", border_format_comma)
+        worksheet.write(calculation_row, col_position + 3, "", border_format_comma)
+        worksheet.write(calculation_row, col_position + 4, "", border_format_comma)
+        calculation_row += 1
 
-        worksheet.write(row_position + 1, col_position, "", border_format)
-        worksheet.write(row_position + 1, col_position + 1, "", border_format)
-        worksheet.write(row_position + 1, col_position + 2, grand_total_non_finance, border_format_comma)
-        worksheet.write(row_position + 1, col_position + 3, nonfinance_price, idr_format)
-        worksheet.write(row_position + 1, col_position + 4, grand_total_non_finance * nonfinance_price, idr_format)
+        worksheet.write(calculation_row, col_position, "", border_format)
+        worksheet.write(calculation_row, col_position + 1, "Inquiry", border_format)
+        worksheet.write(calculation_row, col_position + 2, grand_total_non_finance, border_format_comma)
+        worksheet.write(calculation_row, col_position + 3, nonfinance_price, idr_format)
+        worksheet.write(calculation_row, col_position + 4, grand_total_non_finance * nonfinance_price, idr_format)
+
+        # Update total charges
         total_tagihan += grand_total_non_finance * nonfinance_price
+        calculation_row += 1
 
-        # Total row
-        row_position += 3
-        worksheet.write(row_position, col_position, "TOTAL", bold_border_format_blue)
-        worksheet.write(row_position, col_position + 1, "", bold_border_format_blue)
-        worksheet.write(row_position, col_position + 2, "", bold_border_format_blue)
-        worksheet.write(row_position, col_position + 3, "", bold_border_format_blue)
-        worksheet.write(row_position, col_position + 4, total_tagihan, bold_border_format_blue)
+        # Total Charges
+        worksheet.write(calculation_row, col_position, "TOTAL", bold_border_format_blue)
+        worksheet.write(calculation_row, col_position + 1, "", bold_border_format_blue)
+        worksheet.write(calculation_row, col_position + 2, "", bold_border_format_blue)
+        worksheet.write(calculation_row, col_position + 3, "", bold_border_format_blue)
+        worksheet.write(calculation_row, col_position + 4, total_tagihan, bold_border_format_blue)
+        calculation_row += 1
 
-        # Total Tagihan with red and border
-        total_final = total_tagihan - trx_minimum
-        worksheet.write(row_position + 1, col_position, "Total Tagihan", red_border_format)
-        worksheet.write(row_position + 1, col_position + 1, "", red_border_format)
-        worksheet.write(row_position + 1, col_position + 2, "", red_border_format)
-        worksheet.write(row_position + 1, col_position + 3, "", red_border_format)
-        worksheet.write(row_position + 1, col_position + 4, total_final, red_border_format)
+        # Apply Minimum Charge
+        trx_minimum = int(invoice_data[0]['trx_minimum'])
+        if total_tagihan < trx_minimum:
+            total_final = trx_minimum
+        else:
+            total_final = total_tagihan
+
+        # Final Total
+        worksheet.write(calculation_row, col_position, "Total Tagihan", red_border_format)
+        worksheet.write(calculation_row, col_position + 1, "", red_border_format)
+        worksheet.write(calculation_row, col_position + 2, "", red_border_format)
+        worksheet.write(calculation_row, col_position + 3, "", red_border_format)
+        worksheet.write(calculation_row, col_position + 4, total_final, red_border_format)
 
     # Reset file pointer to the start of the stream
     excel_output.seek(0)
     # Create the dynamic download filename
     download_name = f"Rekap Kelebihan Transaksi.{bank_code}.{year_month}.xlsx"
     # Send the file to the user
-    return send_file(excel_output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                     as_attachment=True, download_name=download_name)
-
+    return send_file(
+        excel_output,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        as_attachment=True,
+        download_name=download_name
+    )
 
 
 
