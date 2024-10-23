@@ -45,13 +45,6 @@
                     <label for="bankName" class="form-label">Bank Name</label>
                     <input type="text" class="form-control" id="bankName" name="bank_name" required>
                 </div>
-                <div class="mb-3">
-                    <label for="version" class="form-label">Version</label>
-                    <select class="form-select" id="version" name="version" required>
-                        <option value="V1">V1</option>
-                        <option value="V2">V2</option>
-                    </select>
-                </div>
                 <button type="submit" class="btn btn-primary">Save</button>
                 <br>
                 <!-- Flash Messages -->
@@ -80,7 +73,6 @@
                         <th>ID</th>
                         <th>Bank Code</th>
                         <th>Bank Name</th>
-                        <th>Version</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -90,7 +82,6 @@
                         <td>{{ bank[0] }}</td>
                         <td>{{ bank[1] }}</td>
                         <td>{{ bank[2] }}</td>
-                        <td>{{ bank[3] }}</td>
                         <td>
                             <a href="{{ url_for('edit_bank', bank_id=bank[0]) }}" class="btn btn-sm btn-warning">Update</a>
                             <a href="{{ url_for('delete_bank', bank_id=bank[0]) }}" class="btn btn-sm btn-danger"
@@ -109,19 +100,6 @@
         <div id="generate-report" class="section" style="display: none;">
             <h2>Generate Report and Invoice</h2>
             <form id="report-form" method="POST" action="/upload" enctype="multipart/form-data" onsubmit="return showSpinner()">
-                <div class="mb-3">
-                    <label for="reportVersion" class="form-label">Report Version</label>
-                    <select class="form-select" id="reportVersion" name="reportVersion" required>
-                        <option value="select-the-option">Select Version</option> <!-- Default invalid option -->
-                        <option value="V1">V1</option>
-                        <option value="V2">V2</option>
-                    </select>
-                </div>
-                <!-- Loading Spinner Overlay -->
-                <div id="spinner-overlay" class="spinner-overlay">
-                    <div class="spinner"></div>
-                </div>
-
                 <!-- Drag-and-Drop Zone for File Upload -->
                 <div class="mb-3">
                     <label for="uploadFiles" class="form-label">Upload CSV Files</label>
@@ -130,7 +108,10 @@
                         <input type="file" class="drop-zone__input" id="uploadFiles" name="files" accept=".csv" multiple>
                     </div>
                 </div>
-
+                <!-- Loading Spinner Overlay -->
+                <div id="spinner-overlay" class="spinner-overlay">
+                    <div class="spinner"></div>
+                </div>
                 <!-- Display the uploaded file names -->
                 <div id="file-names" class="mt-2"></div> <!-- This div will display the file names -->
 
@@ -276,19 +257,21 @@
             const bankCodes = {{ banks | tojson }};
             // If needed, update other related fields here based on the bank selection
         });
+
         function showSpinner() {
-            const versionSelect = document.getElementById('reportVersion');
-            const selectedVersion = versionSelect.value;
+            const filesInput = document.getElementById('uploadFiles');
             
-            if (selectedVersion === "select-the-option") {
-                alert("Please select a valid version before submitting.");
-                return false; // Prevent form submission and spinner from showing
+            // Check if any files are selected
+            if (filesInput.files.length === 0) {
+                alert("Please upload at least one file before submitting.");
+                return false;  // Prevent form submission
             }
 
             const spinnerOverlay = document.getElementById('spinner-overlay');
             spinnerOverlay.style.display = 'flex';  // Show the loading spinner
             return true;  // Allow form submission to proceed
         }
+
 
 
     </script>
