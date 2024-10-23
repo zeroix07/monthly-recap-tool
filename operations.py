@@ -1,6 +1,6 @@
 import sqlite3
 
-def save_bank_data(bank_code, bank_name, version):
+def save_bank_data(bank_code, bank_name):
     conn = sqlite3.connect('database/recap_invoice.db')
     cursor = conn.cursor()
     try:
@@ -8,19 +8,18 @@ def save_bank_data(bank_code, bank_name, version):
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
                             bank_code TEXT NOT NULL,
                             bank_name TEXT NOT NULL,
-                            version TEXT NOT NULL,
-                            UNIQUE(bank_code, bank_name, version)
+                            UNIQUE(bank_code, bank_name)
                         )''')
 
-        cursor.execute('''SELECT * FROM bank_data WHERE bank_code = ? AND bank_name = ? AND version = ?''',
-                       (bank_code, bank_name, version))
+        cursor.execute('''SELECT * FROM bank_data WHERE bank_code = ? AND bank_name = ?''',
+                       (bank_code, bank_name))
         result = cursor.fetchone()
 
         if result:
             return False  # Indicate failure due to duplicate
         else:
-            cursor.execute('''INSERT INTO bank_data (bank_code, bank_name, version)
-                              VALUES (?, ?, ?)''', (bank_code, bank_name, version))
+            cursor.execute('''INSERT INTO bank_data (bank_code, bank_name)
+                              VALUES (?, ?)''', (bank_code, bank_name))
             conn.commit()
             return True  # Indicate success
     finally:
@@ -53,12 +52,12 @@ def get_bank_by_code(bank_code):
     conn.close()
     return bank
 
-def update_bank_data(bank_id, bank_code, bank_name, version):
+def update_bank_data(bank_id, bank_code, bank_name):
     conn = sqlite3.connect('database/recap_invoice.db')
     cursor = conn.cursor()
     cursor.execute('''UPDATE bank_data
-                      SET bank_code = ?, bank_name = ?, version = ?
-                      WHERE id = ?''', (bank_code, bank_name, version, bank_id))
+                      SET bank_code = ?, bank_name = ?
+                      WHERE id = ?''', (bank_code, bank_name, bank_id))
     conn.commit()
     conn.close()
 
@@ -93,8 +92,7 @@ def create_bank_data_table():
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         bank_code TEXT NOT NULL,
                         bank_name TEXT NOT NULL,
-                        version TEXT NOT NULL,
-                        UNIQUE(bank_code, bank_name, version)
+                        UNIQUE(bank_code, bank_name)
                     )''')
     conn.commit()
     conn.close()

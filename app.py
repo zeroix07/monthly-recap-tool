@@ -22,7 +22,6 @@ app = Flask(__name__)
 app.secret_key = 'supersecretkey'
 
 
-
 @app.after_request
 def add_header(response):
     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
@@ -173,10 +172,9 @@ def add_bank():
     if request.method == 'POST':
         bank_code = request.form['bank_code']
         bank_name = request.form['bank_name']
-        version = request.form['version']
 
         # Save the new bank data
-        success = save_bank_data(bank_code, bank_name, version)
+        success = save_bank_data(bank_code, bank_name)
 
         if success:
             flash('Bank data added successfully!', 'success')
@@ -195,10 +193,9 @@ def edit_bank(bank_id):
     if request.method == 'POST':
         bank_code = request.form['bank_code']
         bank_name = request.form['bank_name']
-        version = request.form['version']
 
         # Update the bank record
-        update_bank_data(bank_id, bank_code, bank_name, version)
+        update_bank_data(bank_id, bank_code, bank_name)
 
         flash('Bank data updated successfully!', 'success')
         return redirect(url_for('add_bank'))
@@ -1096,7 +1093,7 @@ def invoice_combine(filenames):
 
         # Update total charges
         total_tagihan += grand_total_non_finance * nonfinance_price
-        calculation_row += 2
+        calculation_row += 1
 
         # Insert into data_biller for Non-Finansial
         save_data_biller(
