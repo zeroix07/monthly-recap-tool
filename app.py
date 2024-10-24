@@ -1118,11 +1118,8 @@ def invoice_combine(filenames):
 
         # Apply Minimum Charge
         trx_minimum = int(invoice_data[0]['trx_minimum'])
-        if total_tagihan < trx_minimum:
-            total_final = trx_minimum
-        else:
-            total_final = total_tagihan
-
+        
+        total_final = total_tagihan - trx_minimum
         # Write final total
         worksheet.write(calculation_row, col_position, "Total Tagihan", red_border_format)
         worksheet.write(calculation_row, col_position + 1, "", red_border_format)
