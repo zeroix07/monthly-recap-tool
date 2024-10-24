@@ -1,0 +1,66 @@
+<!-- edit_financial_invoice.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Edit Financial Invoice</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Include your custom CSS if any -->
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/dashboard-style.css') }}">
+</head>
+<body>
+    <div class="container mt-5">
+        <h2>Edit Financial Invoice</h2>
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="alert-container">
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="{{ url_for('edit_financial_invoice', invoice_id=invoice[0]) }}">
+            <!-- Bank Name Dropdown -->
+            <div class="mb-3">
+                <label for="bankNameFinancial" class="form-label">Bank Name</label>
+                <select class="form-select" id="bankNameFinancial" name="bank_id" required>
+                    {% for bank in banks %}
+                        <option value="{{ bank[0] }}" {% if bank[0] == invoice_bank_id %}selected{% endif %}>{{ bank[2] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <!-- Tiering Name (Financial) -->
+            <div class="mb-3">
+                <label for="tieringNameFinancial" class="form-label">Tiering Name (Financial)</label>
+                <input type="text" class="form-control" id="tieringNameFinancial" name="tiering_name_financial" value="{{ invoice[3] }}" required>
+            </div>
+            <!-- Minimum Transaksi -->
+            <div class="mb-3">
+                <label for="trxMinimumFinancial" class="form-label">Minimum Transaksi</label>
+                <input type="number" class="form-control" id="trxMinimumFinancial" name="trx_minimum" value="{{ invoice[4] }}" min="0" required>
+            </div>
+            <!-- Jumlah Transaksi Finansial -->
+            <div class="mb-3">
+                <label for="trxFinance" class="form-label">Jumlah Transaksi Finansial</label>
+                <input type="number" class="form-control" id="trxFinance" name="trx_finance" value="{{ invoice[5] }}" min="0" required>
+            </div>
+            <!-- Harga Finansial -->
+            <div class="mb-3">
+                <label for="financePrice" class="form-label">Harga Finansial</label>
+                <input type="number" class="form-control" id="financePrice" name="finance_price" value="{{ invoice[6] }}" min="0" required>
+            </div>
+            <!-- Submit Button -->
+            <button type="submit" class="btn btn-primary">Update Financial Invoice</button>
+            <a href="{{ url_for('data_invoice') }}" class="btn btn-secondary">Cancel</a>
+        </form>
+    </div>
+    <!-- Include Bootstrap JS if needed -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js" ></script>
+</body>
+</html>
