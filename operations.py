@@ -81,7 +81,8 @@ def get_bank_code_by_id(bank_id):
 
 def create_table_if_not_exists():
     create_bank_data_table()
-    create_invoice_data_table()
+    create_financial_invoice_table()
+    create_non_financial_invoice_table()
     create_selected_filters_table()
     create_data_biller_table()
 
@@ -93,24 +94,6 @@ def create_bank_data_table():
                         bank_code TEXT NOT NULL,
                         bank_name TEXT NOT NULL,
                         UNIQUE(bank_code, bank_name)
-                    )''')
-    conn.commit()
-    conn.close()
-
-def create_invoice_data_table():
-    conn = sqlite3.connect('database/recap_invoice.db')
-    cursor = conn.cursor()
-    cursor.execute('''CREATE TABLE IF NOT EXISTS invoice_data (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        bank_code TEXT NOT NULL,
-                        bank_name TEXT NOT NULL,
-                        tiering_name TEXT NOT NULL,
-                        trx_minimum INTEGER NOT NULL,
-                        trx_finance INTEGER NOT NULL,
-                        finance_price INTEGER NOT NULL,
-                        trx_nonfinance INTEGER NOT NULL,
-                        nonfinance_price INTEGER NOT NULL,
-                        UNIQUE(bank_code, bank_name, tiering_name, trx_minimum, trx_finance, finance_price, trx_nonfinance, nonfinance_price)
                     )''')
     conn.commit()
     conn.close()
@@ -131,59 +114,6 @@ def create_selected_filters_table():
     conn.commit()
     conn.close()
 
-def save_invoice_data(bank_code, bank_name, tiering_name, trx_minimum, trx_finance, finance_price, trx_nonfinance, nonfinance_price):
-    conn = sqlite3.connect('database/recap_invoice.db')
-    cursor = conn.cursor()
-
-    cursor.execute('''CREATE TABLE IF NOT EXISTS invoice_data (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        bank_code TEXT NOT NULL,
-                        bank_name TEXT NOT NULL,
-                        tiering_name TEXT NOT NULL,
-                        trx_minimum INTEGER NOT NULL,
-                        trx_finance INTEGER NOT NULL,
-                        finance_price INTEGER NOT NULL,
-                        trx_nonfinance INTEGER NOT NULL,
-                        nonfinance_price INTEGER NOT NULL,
-                        UNIQUE(bank_code, bank_name, tiering_name, trx_minimum, trx_finance, finance_price, trx_nonfinance, nonfinance_price)
-                    )''')
-
-    cursor.execute('''SELECT * FROM invoice_data WHERE bank_code = ? AND bank_name = ? AND tiering_name = ? 
-                      AND trx_minimum = ? AND trx_finance = ? AND finance_price = ? AND trx_nonfinance = ? AND nonfinance_price = ?''',
-                   (bank_code, bank_name, tiering_name, trx_minimum, trx_finance, finance_price, trx_nonfinance, nonfinance_price))
-    result = cursor.fetchone()
-
-    if result:
-        conn.close()
-        return False
-    else:
-        cursor.execute('''INSERT INTO invoice_data (bank_code, bank_name, tiering_name, trx_minimum, trx_finance, finance_price, trx_nonfinance, nonfinance_price)
-                          VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
-                       (bank_code, bank_name, tiering_name, trx_minimum, trx_finance, finance_price, trx_nonfinance, nonfinance_price))
-        conn.commit()
-        conn.close()
-        return True
-
-def update_invoice_data(invoice_id, bank_code, bank_name, tiering_name, trx_minimum, trx_finance, finance_price, trx_nonfinance, nonfinance_price):
-    conn = sqlite3.connect('database/recap_invoice.db')
-    cursor = conn.cursor()
-    
-    cursor.execute('''UPDATE invoice_data
-                      SET bank_code = ?, bank_name = ?, tiering_name = ?, trx_minimum = ?, trx_finance = ?, finance_price = ?, trx_nonfinance = ?, nonfinance_price = ?
-                      WHERE id = ?''',
-                   (bank_code, bank_name, tiering_name, trx_minimum, trx_finance, finance_price, trx_nonfinance, nonfinance_price, invoice_id))
-    conn.commit()
-    conn.close()
-
-def delete_invoice_data(invoice_id):
-    conn = sqlite3.connect('database/recap_invoice.db')
-    cursor = conn.cursor()
-    
-    # Delete the invoice record by its ID
-    cursor.execute('''DELETE FROM invoice_data WHERE id = ?''', (invoice_id,))
-    
-    conn.commit()
-    conn.close()
 
 def get_all_invoices():
     conn = sqlite3.connect('database/recap_invoice.db')
@@ -332,3 +262,150 @@ def get_all_data_biller():
     data_biller = cursor.fetchall()
     conn.close()
     return data_biller if data_biller else []
+
+
+def create_financial_invoice_table():
+    conn = sqlite3.connect('database/recap_invoice.db')
+    cursor = conn.cursor()
+    cursor.execute('''CREATE TABLE IF NOT EXISTS financial_invoice_data (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        bank_code TEXT NOT NULL,
+                        bank_name TEXT NOT NULL,
+                        tiering_name_financial TEXT NOT NULL,
+                        trx_minimum INTEGER NOT NULL,
+                        trx_finance INTEGER NOT NULL,
+                        finance_price INTEGER NOT NULL,
+                        UNIQUE(bank_code, bank_name, tiering_name_financial, trx_minimum, trx_finance, finance_price)
+                    )''')
+    conn.commit()
+    conn.close()
+
+def create_non_financial_invoice_table():
+    conn = sqlite3.connect('database/recap_invoice.db')
+    cursor = conn.cursor()
+    cursor.execute('''CREATE TABLE IF NOT EXISTS non_financial_invoice_data (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        bank_code TEXT NOT NULL,
+                        bank_name TEXT NOT NULL,
+                        tiering_name_non_financial TEXT NOT NULL,
+                        trx_minimum INTEGER NOT NULL,
+                        trx_nonfinance INTEGER NOT NULL,
+                        nonfinance_price INTEGER NOT NULL,
+                        UNIQUE(bank_code, bank_name, tiering_name_non_financial, trx_minimum, trx_nonfinance, nonfinance_price)
+                    )''')
+    conn.commit()
+    conn.close()
+
+def save_financial_invoice(bank_code, bank_name, tiering_name, trx_minimum, trx_finance, finance_price):
+    conn = sqlite3.connect('database/recap_invoice.db')
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''INSERT INTO financial_invoice_data 
+                         (bank_code, bank_name, tiering_name_financial, trx_minimum, trx_finance, finance_price)
+                         VALUES (?, ?, ?, ?, ?, ?)''',
+                      (bank_code, bank_name, tiering_name, trx_minimum, trx_finance, finance_price))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+    finally:
+        conn.close()
+
+def save_non_financial_invoice(bank_code, bank_name, tiering_name, trx_minimum, trx_nonfinance, nonfinance_price):
+    conn = sqlite3.connect('database/recap_invoice.db')
+    cursor = conn.cursor()
+    try:
+        cursor.execute('''INSERT INTO non_financial_invoice_data 
+                         (bank_code, bank_name, tiering_name_non_financial, trx_minimum, trx_nonfinance, nonfinance_price)
+                         VALUES (?, ?, ?, ?, ?, ?)''',
+                      (bank_code, bank_name, tiering_name, trx_minimum, trx_nonfinance, nonfinance_price))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False
+    finally:
+        conn.close()
+
+def get_all_financial_invoices():
+    conn = sqlite3.connect('database/recap_invoice.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM financial_invoice_data")
+    invoices = cursor.fetchall()
+    conn.close()
+    return invoices if invoices else []
+
+def get_all_non_financial_invoices():
+    conn = sqlite3.connect('database/recap_invoice.db')
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM non_financial_invoice_data")
+    invoices = cursor.fetchall()
+    conn.close()
+    return invoices if invoices else []
+
+def get_financial_invoice_by_id(invoice_id):
+    conn = sqlite3.connect('database/recap_invoice.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM financial_invoice_data WHERE id = ?', (invoice_id,))
+    invoice = cursor.fetchone()
+    conn.close()
+    return invoice
+
+def get_non_financial_invoice_by_id(invoice_id):
+    conn = sqlite3.connect('database/recap_invoice.db')
+    cursor = conn.cursor()
+    cursor.execute('SELECT * FROM non_financial_invoice_data WHERE id = ?', (invoice_id,))
+    invoice = cursor.fetchone()
+    conn.close()
+    return invoice
+
+def update_financial_invoice(invoice_id, bank_code, bank_name, tiering_name, trx_minimum, trx_finance, finance_price):
+    conn = sqlite3.connect('database/recap_invoice.db')
+    cursor = conn.cursor()
+    cursor.execute('''UPDATE financial_invoice_data
+                     SET bank_code = ?, bank_name = ?, tiering_name_financial = ?, 
+                         trx_minimum = ?, trx_finance = ?, finance_price = ?
+                     WHERE id = ?''',
+                  (bank_code, bank_name, tiering_name, trx_minimum, trx_finance, finance_price, invoice_id))
+    conn.commit()
+    conn.close()
+
+def update_non_financial_invoice(invoice_id, bank_code, bank_name, tiering_name, trx_minimum, trx_nonfinance, nonfinance_price):
+    conn = sqlite3.connect('database/recap_invoice.db')
+    cursor = conn.cursor()
+    cursor.execute('''UPDATE non_financial_invoice_data
+                     SET bank_code = ?, bank_name = ?, tiering_name_non_financial = ?, 
+                         trx_minimum = ?, trx_nonfinance = ?, nonfinance_price = ?
+                     WHERE id = ?''',
+                  (bank_code, bank_name, tiering_name, trx_minimum, trx_nonfinance, nonfinance_price, invoice_id))
+    conn.commit()
+    conn.close()
+
+def delete_financial_invoice(invoice_id):
+    conn = sqlite3.connect('database/recap_invoice.db')
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM financial_invoice_data WHERE id = ?', (invoice_id,))
+    conn.commit()
+    conn.close()
+
+def delete_non_financial_invoice(invoice_id):
+    conn = sqlite3.connect('database/recap_invoice.db')
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM non_financial_invoice_data WHERE id = ?', (invoice_id,))
+    conn.commit()
+    conn.close()
+
+def get_tiering_names():
+    conn = sqlite3.connect('database/recap_invoice.db')
+    cursor = conn.cursor()
+    try:
+        # Get financial tiering names
+        cursor.execute('SELECT DISTINCT tiering_name_financial FROM financial_invoice_data')
+        financial_tierings = [row[0] for row in cursor.fetchall()]
+        
+        # Get non-financial tiering names
+        cursor.execute('SELECT DISTINCT tiering_name_non_financial FROM non_financial_invoice_data')
+        non_financial_tierings = [row[0] for row in cursor.fetchall()]
+        
+        return financial_tierings, non_financial_tierings
+    finally:
+        conn.close()
